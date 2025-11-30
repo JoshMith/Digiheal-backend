@@ -28,6 +28,28 @@
   },
   "homepage": "https://github.com/JoshMith/Digiheal-backend#readme",
   "dependencies": {
-    "nodemon": "^3.1.11"
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.8.2",
+    "morgan": "^1.10.1",
+    "nodemon": "^3.1.11",
+    "prisma": "^7.0.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/ioredis": "^5.0.0",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.10.1",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "typescript": "^5.9.3"
   }
 }

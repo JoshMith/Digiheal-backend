@@ -1,11 +1,11 @@
 // routes/healthAssessment.routes.ts
 
-import express from 'express';
+import express, { Router } from 'express';
 import { HealthAssessmentController } from '../controllers/healthAssessment.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 
-const router = express.Router();
+const router: Router = express.Router();
 const controller = new HealthAssessmentController();
 
 // All routes require authentication

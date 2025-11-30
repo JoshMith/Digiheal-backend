@@ -1,0 +1,33 @@
+{
+  "name": "digiheal-backend",
+  "version": "1.0.0",
+  "description": "This is a comprehensive digital health management platform built for the Dedan Kimathi University of Technology (DKUT) Medical Center. It's a modern, full-featured healthcare application designed to serve both patients (students/staff) and medical personnel.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "npm test",
+    "dev": "nodemon server.ts",
+    "build": "npm build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoshMith/Digiheal-backend.git"
+  },
+  "keywords": [
+    "jest",
+    "js",
+    "ts"
+  ],
+  "author": "josh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JoshMith/Digiheal-backend/issues"
+  },
+  "homepage": "https://github.com/JoshMith/Digiheal-backend#readme",
+  "dependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

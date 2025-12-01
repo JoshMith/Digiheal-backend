@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { AuthRequest } from '../types';
-import logger from '../utils/logger';
-import { NotificationService } from '../services/notification.service';
+// import { AuthRequest } from '../types';
+import logger from '../utils/logger.js';
+import { NotificationService } from '../services/notification.service.js';
 
 const prisma = new PrismaClient();
 

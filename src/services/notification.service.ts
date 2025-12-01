@@ -1,7 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import { config } from '../config/env';
-import logger from '../utils/logger';
-import prisma from '../config/database';
+import { config } from '../config/env.js';
+import logger from '../utils/logger.js';
+import prisma from '../config/database.js';
 import { NotificationType, Priority } from '@prisma/client';
 
 class NotificationService {

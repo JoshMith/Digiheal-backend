@@ -1,8 +1,8 @@
-import Redis from 'ioredis';
-import config from './env';
-import logger from '../utils/logger';
+import {Redis} from 'ioredis';
+import {config} from './env.js';
+import logger from '../utils/logger.js';
 
-let redisClient: Redis | null = null;
+let redisClient: Redis   | null = null;
 
 export const connectRedis = async (): Promise<Redis | null> => {
   if (!config.redis.enabled || !config.redis.url) {

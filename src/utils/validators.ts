@@ -8,7 +8,8 @@ export const passwordSchema = z
   .min(8, 'Password must be at least 8 characters')
   .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must contain at least one number');
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[@$!%*?&]/, 'Password must contain at least one special character (@$!%*?&)');
 
 export const phoneSchema = z
   .string()
@@ -63,13 +64,13 @@ export const patientRegistrationSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   studentId: studentIdSchema,
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  firstName: z.string().min(2, 'First name must be at least 2 characters').max(50),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50),
   dateOfBirth: dateSchema,
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
   phone: phoneSchema,
-  nationality: z.string().optional(),
-  address: z.string().optional(),
+  nationality: z.string().min(2).max(50).optional(),
+  address: z.string().min(5).max(200).optional(),
   bloodGroup: z.enum([
     'A_POSITIVE',
     'A_NEGATIVE',
@@ -80,12 +81,12 @@ export const patientRegistrationSchema = z.object({
     'O_POSITIVE',
     'O_NEGATIVE',
   ]).optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
+  emergencyContactName: z.string().min(2).max(50).optional(),
+  emergencyContactRelationship: z.string().min(2).max(50).optional(),
   emergencyContactPhone: phoneSchema.optional(),
   emergencyContactEmail: emailSchema.optional(),
-  insuranceProvider: z.string().optional(),
-  policyNumber: z.string().optional(),
+  insuranceProvider: z.string().min(2).max(50).optional(),
+  policyNumber: z.string().min(2).max(50).optional(),
   allergies: z.array(z.string()).optional(),
   chronicConditions: z.array(z.string()).optional(),
   currentMedications: z.array(z.string()).optional(),
@@ -99,11 +100,11 @@ export const loginSchema = z.object({
 
 // Prescription validation
 export const prescriptionSchema = z.object({
-  medicationName: z.string().min(2, 'Medication name is required'),
-  dosage: z.string().min(1, 'Dosage is required'),
-  frequency: z.string().min(1, 'Frequency is required'),
-  duration: z.string().min(1, 'Duration is required'),
-  instructions: z.string().optional(),
+  medicationName: z.string().min(2, 'Medication name is required').max(100),
+  dosage: z.string().min(1, 'Dosage is required').max(50),
+  frequency: z.string().min(1, 'Frequency is required').max(50),
+  duration: z.string().min(1, 'Duration is required').max(50),
+  instructions: z.string().max(500).optional(),
 });
 
 // Vital signs validation
@@ -118,16 +119,58 @@ export const vitalSignsSchema = z.object({
   respiratoryRate: z.number().int().min(8).max(40).optional(),
 });
 
-// Consultation validation
+// Consultation validation - FIXED: Use proper record syntax
 export const consultationSchema = z.object({
-  chiefComplaint: z.string().min(5, 'Chief complaint is required'),
-  historyOfPresentIllness: z.string().optional(),
-  physicalExamination: z.record(z.any()).optional(),
-  primaryDiagnosis: z.string().optional(),
+  chiefComplaint: z.string().min(5, 'Chief complaint is required').max(500),
+  historyOfPresentIllness: z.string().max(2000).optional(),
+  physicalExamination: z.record(z.string(), z.any()).optional(), // Fixed: specify both key and value types
+  primaryDiagnosis: z.string().max(500).optional(),
   differentialDiagnosis: z.array(z.string()).optional(),
-  clinicalAssessment: z.string().optional(),
-  treatmentPlan: z.string().optional(),
-  followUpInstructions: z.string().optional(),
+  clinicalAssessment: z.string().max(2000).optional(),
+  treatmentPlan: z.string().max(2000).optional(),
+  followUpInstructions: z.string().max(1000).optional(),
+});
+
+// Alternative approach for dynamic objects - use object with passthrough
+export const dynamicObjectSchema = z.object({}).passthrough();
+
+// User registration validation
+export const userRegistrationSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  role: z.enum(['PATIENT', 'STAFF', 'ADMIN']).default('PATIENT'),
+  firstName: z.string().min(2).max(50),
+  lastName: z.string().min(2).max(50),
+  phone: phoneSchema.optional(),
+});
+
+// Update profile validation
+export const updateProfileSchema = z.object({
+  firstName: z.string().min(2).max(50).optional(),
+  lastName: z.string().min(2).max(50).optional(),
+  phone: phoneSchema.optional(),
+  dateOfBirth: dateSchema.optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']).optional(),
+  address: z.string().max(200).optional(),
+});
+
+// Change password validation
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: passwordSchema,
+  confirmPassword: z.string().min(1, 'Confirm password is required'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+// Medical record validation
+export const medicalRecordSchema = z.object({
+  diagnosis: z.string().min(2, 'Diagnosis is required').max(500),
+  symptoms: z.array(z.string()).optional(),
+  treatment: z.string().max(2000).optional(),
+  notes: z.string().max(2000).optional(),
+  followUpDate: dateSchema.optional(),
 });
 
 // Helper function to validate data
@@ -135,10 +178,27 @@ export const validate = <T>(schema: z.ZodSchema<T>, data: unknown): T => {
   return schema.parse(data);
 };
 
-// Helper to get validation errors
-export const getValidationErrors = (error: z.ZodError) => {
-  return error.errors.map((err) => ({
+// Helper to get validation errors - MINIMAL FIX
+export const getValidationErrors = (error: z.ZodError<any>) => {
+  return error.errors.map((err: any) => ({
     field: err.path.join('.'),
     message: err.message,
   }));
 };
+// Safe validation (doesn't throw)
+export const safeValidate = <T>(schema: z.ZodSchema<T>, data: unknown) => {
+  return schema.safeParse(data);
+};
+
+// Extract types from schemas
+export type PatientRegistration = z.infer<typeof patientRegistrationSchema>;
+export type LoginData = z.infer<typeof loginSchema>;
+export type AppointmentData = z.infer<typeof createAppointmentSchema>;
+export type PrescriptionData = z.infer<typeof prescriptionSchema>;
+export type VitalSignsData = z.infer<typeof vitalSignsSchema>;
+export type ConsultationData = z.infer<typeof consultationSchema>;
+export type HealthAssessmentData = z.infer<typeof healthAssessmentSchema>;
+export type UserRegistrationData = z.infer<typeof userRegistrationSchema>;
+export type UpdateProfileData = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
+export type MedicalRecordData = z.infer<typeof medicalRecordSchema>;

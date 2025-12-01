@@ -2,8 +2,8 @@
 
 import express, { Router } from 'express';
 import { HealthAssessmentController } from '../controllers/healthAssessment.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { validateRequest } from '../middleware/validation.middleware';
+import { authenticate } from '../middleware/auth';
+import { validateRequest } from '../middleware/validate';
 
 const router: Router = express.Router();
 const controller = new HealthAssessmentController();

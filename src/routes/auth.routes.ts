@@ -5,6 +5,7 @@ import { authLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
+
 /**
  * @swagger
  * /auth/register:

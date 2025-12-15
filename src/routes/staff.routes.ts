@@ -5,9 +5,9 @@ import { authenticate, requireRole } from '../middleware/auth';
 const router: Router = Router();
 
 router.use(authenticate);
-router.use(requireRole(['STAFF', 'ADMIN']));
+router.use(requireRole('STAFF', 'ADMIN'));
 
-router.post('/', requireRole(['ADMIN']), StaffController.createStaff);
+router.post('/', requireRole('ADMIN'), StaffController.createStaff);
 router.get('/', StaffController.getAllStaff);
 router.get('/:id', StaffController.getStaffById);
 router.put('/:id', StaffController.updateStaff);

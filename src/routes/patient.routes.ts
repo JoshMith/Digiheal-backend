@@ -17,6 +17,6 @@ router.get('/:id/history', PatientController.getPatientMedicalHistory);
 router.get('/:id/stats', PatientController.getPatientStats);
 
 // Admin/Staff only routes
-router.get('/', requireRole(['STAFF', 'ADMIN']), PatientController.getAllPatients);
+router.get('/', requireRole('STAFF', 'ADMIN'), PatientController.getAllPatients);
 
 export default router;

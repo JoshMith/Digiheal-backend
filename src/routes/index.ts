@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import authRoutes from './auth.routes.js';
-import healthAssessmentRoutes from './healthAssessment.routes.js';
-import patientRoutes from './patient.routes.js';
-import appointmentRoutes from './appointment.routes.js';
-import staffRoutes from './staff.routes.js';
-import consultationRoutes from './consultation.routes.js';
+import authRoutes from './auth.routes';
+import healthAssessmentRoutes from './healthAssessment.routes';
+import patientRoutes from './patient.routes';
+import appointmentRoutes from './appointment.routes';
+import staffRoutes from './staff.routes';
+import consultationRoutes from './consultation.routes';
 
 const router: Router = Router();
 

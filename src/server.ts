@@ -4,12 +4,12 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
-import { config } from './config/env.js';
-import { connectDatabase, disconnectDatabase } from './config/database.js';
-import { connectRedis, disconnectRedis } from './config/redis.js';
-import { swaggerSpec } from './config/swagger.js';
-import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { apiLimiter } from './middleware/rateLimiter.js';
+import { config } from './config/env';
+import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectRedis, disconnectRedis } from './config/redis';
+import { swaggerSpec } from './config/swagger';
+import { errorHandler, notFound } from './middleware/errorHandler';
+import { apiLimiter } from './middleware/rateLimiter';
 import logger, { stream } from './utils/logger';
 import routes from './routes';
 

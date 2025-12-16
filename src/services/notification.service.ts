@@ -12,14 +12,15 @@ class NotificationService {
   }
 
   private initializeTransporter() {
-    if (config.email.host && config.email.user && config.email.pass) {
-      this.transporter = nodemailer.createTransporter({
-        host: config.email.host,
-        port: config.email.port,
-        secure: config.email.secure,
+    const emailConfig = (config as any).email;
+    if (emailConfig?.host && emailConfig?.user && emailConfig?.pass) {
+      this.transporter = nodemailer.createTransport({
+        host: emailConfig.host,
+        port: emailConfig.port,
+        secure: emailConfig.secure,
         auth: {
-          user: config.email.user,
-          pass: config.email.pass,
+          user: emailConfig.user,
+          pass: emailConfig.pass,
         },
       });
 
@@ -68,8 +69,9 @@ class NotificationService {
     }
 
     try {
+      const emailConfig = (config as any).email;
       const info = await this.transporter.sendMail({
-        from: config.email.from,
+        from: emailConfig.from,
         to,
         subject,
         html,

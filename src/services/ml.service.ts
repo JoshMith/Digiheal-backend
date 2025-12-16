@@ -4,13 +4,15 @@ import logger from '../utils/logger';
 import { UrgencyLevel, Priority } from '@prisma/client';
 import prisma from '../config/database';
 import { cacheService } from '../config/redis';
+import dotenv from 'dotenv';
+dotenv.config();
 
 interface MLPredictionRequest {
   symptoms: string[];
-  age?: number;
-  gender?: string;
-  duration?: string;
-  severity?: string;
+  age?: number | undefined;
+  gender?: string | undefined;
+  duration?: string | undefined;
+  severity?: string | undefined;
 }
 
 interface MLPredictionResponse {
@@ -28,14 +30,14 @@ export class MLService {
 
   constructor() {
     this.client = axios.create({
-      baseURL: config.mlService.url,
-      timeout: config.mlService.timeout,
+      baseURL: process.env.ML_SERVICE_URL || 'http://localhost:5000',
+      timeout: parseInt(process.env.ML_SERVICE_TIMEOUT || '30000', 10),
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    this.cacheEnabled = config.redis.enabled;
+    this.cacheEnabled = config.redis?.enabled || false;
 
     // Request interceptor for logging
     this.client.interceptors.request.use(
@@ -138,7 +140,7 @@ export class MLService {
           severityScore: prediction.severity_score,
           urgency: prediction.urgency as UrgencyLevel,
           recommendations: prediction.recommendations,
-          confidence: prediction.confidence,
+          confidence: prediction.confidence ?? null,
         },
         include: {
           patient: {

@@ -103,6 +103,7 @@ export class ConsultationController {
             consultationId: consult.id,
             patientId: appointment.patientId,
             staffId: staff.id,
+            prescribedBy: staff.id,
             medicationName: rx.medicationName,
             dosage: rx.dosage,
             frequency: rx.frequency,

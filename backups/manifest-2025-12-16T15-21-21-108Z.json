@@ -1,0 +1,27 @@
+{
+  "backupFile": "complete-backup-2025-12-16T15-21-21-108Z.json",
+  "created": "2025-12-16T15:21:18.122Z",
+  "records": {
+    "total": 83,
+    "byTable": {
+      "system_settings": 6,
+      "users": 8,
+      "patients": 3,
+      "staff": 4,
+      "notification_preferences": 6,
+      "appointment_slots": 36,
+      "health_assessments": 3,
+      "medical_records": 0,
+      "appointments": 4,
+      "consultations": 1,
+      "vital_signs": 1,
+      "prescriptions": 0,
+      "feedbacks": 3,
+      "notifications": 3,
+      "ml_prediction_logs": 3,
+      "virtual_consultations": 1,
+      "waitlists": 1,
+      "audit_logs": 0
+    }
+  }
+}

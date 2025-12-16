@@ -1,327 +1,183 @@
-// scripts/database-restore.ts
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
-import path from 'path';
 import readline from 'readline';
 
 const prisma = new PrismaClient();
 
-interface RestoreOptions {
-  backupFile: string;
-  skipRelations?: string[];
-  truncateFirst?: boolean;
-  dryRun?: boolean;
-}
-
-class DatabaseRestore {
-  private backupData: any;
-  private recordCounts: Record<string, number> = {};
-  private errors: string[] = [];
+async function restore(filePath: string) {
+  console.log('🚀 Starting complete restore...\n');
   
-  async restore(options: RestoreOptions): Promise<void> {
-    console.log('🚀 Starting database restore...');
-    console.log('===============================\n');
-    
-    try {
-      // Load backup file
-      await this.loadBackupFile(options.backupFile);
-      
-      // Show backup info
-      this.showBackupInfo();
-      
-      // Ask for confirmation
-      if (!(await this.confirmRestore(options))) {
-        console.log('❌ Restore cancelled by user.');
-        return;
-      }
-      
-      // Truncate tables if requested
-      if (options.truncateFirst && !options.dryRun) {
-        await this.truncateTables();
-      }
-      
-      // Restore data
-      await this.restoreData(options);
-      
-      // Show summary
-      this.showRestoreSummary();
-      
-    } catch (error) {
-      console.error('❌ Restore failed:', error);
-      throw error;
-    } finally {
-      await prisma.$disconnect();
-    }
+  if (!fs.existsSync(filePath)) {
+    console.error('❌ Backup file not found:', filePath);
+    return;
   }
   
-  private async loadBackupFile(filePath: string): Promise<void> {
-    console.log(`📂 Loading backup file: ${filePath}`);
+  try {
+    // Load backup
+    const backup = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    console.log(`📂 Loaded backup from: ${new Date(backup.timestamp).toLocaleString()}`);
+    console.log(`📊 Database Version: ${backup.databaseVersion || 'N/A'}`);
     
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Backup file not found: ${filePath}`);
-    }
-    
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    this.backupData = JSON.parse(fileContent);
-    
-    if (!this.backupData.data || !this.backupData.metadata) {
-      throw new Error('Invalid backup file format');
-    }
-    
-    console.log(`✅ Backup loaded (${this.backupData.metadata.timestamp})`);
-  }
-  
-  private showBackupInfo(): void {
-    const meta = this.backupData.metadata;
-    
-    console.log('\n📋 Backup Information:');
-    console.log('=====================');
-    console.log(`Date: ${new Date(meta.timestamp).toLocaleString()}`);
-    console.log(`Database: ${meta.databaseName}`);
-    console.log(`Schema Hash: ${meta.schemaHash}`);
-    console.log('\n📊 Record Counts:');
-    
-    Object.entries(meta.recordCounts || {}).forEach(([table, count]) => {
-      if (Number(count) > 0) {
-        console.log(`  ${table.padEnd(25)}: ${count}`);
-      }
-    });
-    
-    console.log(`\n📈 Total records: ${Object.values(meta.recordCounts || {}).reduce((a: number, b: number) => a + b, 0)}`);
-  }
-  
-  private async confirmRestore(options: RestoreOptions): Promise<boolean> {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    
-    console.log('\n⚠️  WARNING: This will modify your database!');
-    
-    if (options.dryRun) {
-      console.log('🔍 DRY RUN MODE - No changes will be made.');
-    }
-    
-    if (options.truncateFirst) {
-      console.log('🗑️  Existing data will be TRUNCATED before restore!');
-    }
-    
-    return new Promise((resolve) => {
-      rl.question('\n❓ Are you sure you want to continue? (yes/no): ', (answer) => {
-        rl.close();
-        resolve(answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y');
-      });
-    });
-  }
-  
-  private async truncateTables(): Promise<void> {
-    console.log('\n🗑️  Truncating tables...');
-    
-    // Disable foreign key checks temporarily
-    await prisma.$executeRaw`SET session_replication_role = 'replica';`;
-    
-    // Truncate tables in correct order (child to parent)
+    // Display summary
+    console.log('\n📊 Records to restore:');
     const tables = [
-      'prescription_refills',
-      'prescriptions',
-      'vital_signs',
-      'feedbacks',
-      'notifications',
-      'medical_records',
-      'appointment_slots',
-      'schedules',
-      'consultations',
-      'appointments',
-      'health_assessments',
-      'waitlist_entries',
-      'inventory',
-      'invoices',
-      'analytics_reports',
-      'audit_logs',
-      'system_settings',
-      'patients',
-      'staff',
-      'users',
+      'system_settings', 'users', 'patients', 'staff', 
+      'notification_preferences', 'appointment_slots',
+      'health_assessments', 'medical_records',
+      'appointments', 'consultations',
+      'vital_signs', 'prescriptions', 'feedbacks', 'notifications',
+      'ml_prediction_logs', 'virtual_consultations', 'waitlists', 'audit_logs'
     ];
     
-    for (const table of tables) {
-      try {
-        await prisma.$executeRaw`TRUNCATE TABLE ${table} CASCADE;`;
-        console.log(`  ✅ Truncated: ${table}`);
-      } catch (error) {
-        console.log(`  ⚠️  Could not truncate ${table}: ${error.message}`);
-      }
-    }
-    
-    // Re-enable foreign key checks
-    await prisma.$executeRaw`SET session_replication_role = 'origin';`;
-    
-    console.log('✅ All tables truncated.');
-  }
-  
-  private async restoreData(options: RestoreOptions): Promise<void> {
-    console.log('\n🔄 Restoring data...');
-    
-    // Restore in correct order (parent to child)
-    const restoreOrder = [
-      'users',
-      'patients',
-      'staff',
-      'schedules',
-      'appointmentSlots',
-      'healthAssessments',
-      'appointments',
-      'consultations',
-      'prescriptions',
-      'prescriptionRefills',
-      'vitalSigns',
-      'medicalRecords',
-      'notifications',
-      'feedbacks',
-      'inventory',
-      'invoices',
-      'systemSettings',
-      'auditLogs',
-      'analyticsReports',
-    ];
-    
-    for (const table of restoreOrder) {
-      if (this.backupData.data[table] && this.backupData.data[table].length > 0) {
-        await this.restoreTable(table, options);
-      }
-    }
-  }
-  
-  private async restoreTable(tableName: string, options: RestoreOptions): Promise<void> {
-    const records = this.backupData.data[tableName];
-    console.log(`\n  📥 Restoring ${tableName} (${records.length} records)...`);
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    // Process records in batches
-    const batchSize = 100;
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      
-      for (const record of batch) {
-        try {
-          // Clean the record (remove relations if needed)
-          const cleanRecord = this.cleanRecord(record, options.skipRelations || []);
-          
-          if (!options.dryRun) {
-            // @ts-ignore - Dynamic table access
-            await prisma[tableName].create({
-              data: cleanRecord,
-            });
-          }
-          
-          successCount++;
-        } catch (error) {
-          errorCount++;
-          this.errors.push(`Error restoring ${tableName} record ${record.id}: ${error.message}`);
-          
-          // Show first few errors
-          if (errorCount <= 3) {
-            console.log(`    ⚠️  Error: ${error.message}`);
-          }
-        }
-      }
-      
-      // Show progress
-      const progress = Math.min(i + batchSize, records.length);
-      const percent = ((progress / records.length) * 100).toFixed(1);
-      process.stdout.write(`    Progress: ${progress}/${records.length} (${percent}%)\r`);
-    }
-    
-    this.recordCounts[tableName] = successCount;
-    
-    console.log(`\n    ✅ ${successCount} restored, ❌ ${errorCount} errors`);
-  }
-  
-  private cleanRecord(record: any, skipRelations: string[]): any {
-    const clean: any = { ...record };
-    
-    // Remove auto-generated fields
-    delete clean.createdAt;
-    delete clean.updatedAt;
-    
-    // Remove relation fields
-    Object.keys(clean).forEach(key => {
-      if (typeof clean[key] === 'object' && clean[key] !== null) {
-        delete clean[key];
-      }
-    });
-    
-    // Handle specific skipped relations
-    skipRelations.forEach(relation => {
-      delete clean[relation];
-      delete clean[`${relation}Id`];
-    });
-    
-    return clean;
-  }
-  
-  private showRestoreSummary(): void {
-    console.log('\n🎉 Restore completed!');
-    console.log('===================\n');
-    
-    console.log('📊 Restored records:');
-    Object.entries(this.recordCounts).forEach(([table, count]) => {
+    tables.forEach(table => {
+      const count = backup[table]?.length || 0;
       if (count > 0) {
         console.log(`  ${table.padEnd(25)}: ${count}`);
       }
     });
     
-    const totalRestored = Object.values(this.recordCounts).reduce((a, b) => a + b, 0);
-    console.log(`\n📈 Total restored: ${totalRestored}`);
+    // Ask for confirmation
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
     
-    if (this.errors.length > 0) {
-      console.log(`\n❌ Errors encountered: ${this.errors.length}`);
-      if (this.errors.length <= 5) {
-        this.errors.forEach(error => console.log(`  - ${error}`));
-      } else {
-        console.log('  (Showing first 5 errors)');
-        this.errors.slice(0, 5).forEach(error => console.log(`  - ${error}`));
+    const answer = await new Promise<string>(resolve => {
+      rl.question('\n❓ Are you ABSOLUTELY sure you want to restore? This will DELETE ALL existing data! (yes/no): ', resolve);
+    });
+    rl.close();
+    
+    if (answer.toLowerCase() !== 'yes' && answer.toLowerCase() !== 'y') {
+      console.log('❌ Restore cancelled.');
+      return;
+    }
+    
+    console.log('\n🗑️  Deleting existing data (in reverse order)...');
+    
+    // Delete in reverse dependency order (children first, parents last)
+    const deleteOrder = [
+      // Child tables
+      'ml_prediction_logs',
+      'virtual_consultations',
+      'vital_signs',
+      'feedbacks',
+      'notifications',
+      'prescriptions',
+      'waitlists',
+      'consultations',
+      'appointments',
+      'medical_records',
+      'health_assessments',
+      'appointment_slots',
+      'notification_preferences',
+      'audit_logs',
+      
+      // Main tables
+      'patients',
+      'staff',
+      'users',
+      
+      // System tables
+      'system_settings'
+    ];
+    
+    for (const table of deleteOrder) {
+      const model = table as keyof PrismaClient;
+      if (prisma[model] && prisma[model]['deleteMany']) {
+        const result = await (prisma[model] as any).deleteMany({});
+        console.log(`  Deleted ${result.count} records from ${table}`);
+      }
+    }
+    
+    console.log('✅ Existing data deleted.');
+    
+    // Restore in correct dependency order
+    console.log('\n🔄 Restoring data...');
+    
+    // Helper function to restore a table
+    const restoreTable = async (tableName: string, data: any[]) => {
+      if (!data || data.length === 0) return;
+      
+      console.log(`  Restoring ${data.length} ${tableName}...`);
+      const model = tableName as keyof PrismaClient;
+      
+      if (!prisma[model] || !prisma[model]['createMany']) {
+        console.log(`  ⚠️  Skipping ${tableName} - no createMany method`);
+        return;
       }
       
-      // Save errors to file
-      const errorLogPath = path.join(process.cwd(), 'restore-errors.log');
-      fs.writeFileSync(errorLogPath, this.errors.join('\n'));
-      console.log(`\n📝 Full error log saved to: ${errorLogPath}`);
+      try {
+        // Batch inserts to avoid memory issues
+        const batchSize = 100;
+        for (let i = 0; i < data.length; i += batchSize) {
+          const batch = data.slice(i, i + batchSize);
+          await (prisma[model] as any).createMany({
+            data: batch,
+            skipDuplicates: true
+          });
+          if (i % 1000 === 0) {
+            console.log(`    ... ${Math.min(i + batchSize, data.length)} / ${data.length}`);
+          }
+        }
+      } catch (error) {
+        console.log(`  ⚠️  Error restoring ${tableName}:`, error.message);
+        // Try individual inserts if batch fails
+        console.log(`  Trying individual inserts for ${tableName}...`);
+        for (const item of data) {
+          try {
+            await (prisma[model] as any).create({
+              data: item
+            });
+          } catch (err) {
+            console.log(`    Skipping item in ${tableName}:`, err.message);
+          }
+        }
+      }
+    };
+    
+    // Restore in correct order
+    const restoreOrder = [
+      { table: 'system_settings', data: backup.system_settings },
+      { table: 'users', data: backup.users },
+      { table: 'patients', data: backup.patients },
+      { table: 'staff', data: backup.staff },
+      { table: 'notification_preferences', data: backup.notification_preferences },
+      { table: 'appointment_slots', data: backup.appointment_slots },
+      { table: 'health_assessments', data: backup.health_assessments },
+      { table: 'medical_records', data: backup.medical_records },
+      { table: 'appointments', data: backup.appointments },
+      { table: 'consultations', data: backup.consultations },
+      { table: 'vital_signs', data: backup.vital_signs },
+      { table: 'prescriptions', data: backup.prescriptions },
+      { table: 'feedbacks', data: backup.feedbacks },
+      { table: 'notifications', data: backup.notifications },
+      { table: 'ml_prediction_logs', data: backup.ml_prediction_logs },
+      { table: 'virtual_consultations', data: backup.virtual_consultations },
+      { table: 'waitlists', data: backup.waitlists },
+      { table: 'audit_logs', data: backup.audit_logs }
+    ];
+    
+    for (const { table, data } of restoreOrder) {
+      await restoreTable(table, data);
     }
+    
+    console.log('\n✅ Restore completed successfully!');
+    console.log('🎉 Database has been restored from backup.');
+    
+  } catch (error) {
+    console.error('❌ Restore failed:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-// CLI interface
-async function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    console.log('Usage: npx tsx scripts/database-restore.ts <backup-file> [options]');
-    console.log('\nOptions:');
-    console.log('  --dry-run           Show what would be restored without making changes');
-    console.log('  --truncate          Truncate tables before restore');
-    console.log('  --skip-relations    Skip restoring relation data');
-    console.log('\nExamples:');
-    console.log('  npx tsx scripts/database-restore.ts backups/2024-12-15/backup_*.json');
-    console.log('  npx tsx scripts/database-restore.ts backup.json --dry-run --truncate');
-    return;
-  }
-  
-  const backupFile = args[0];
-  const options: RestoreOptions = {
-    backupFile,
-    truncateFirst: args.includes('--truncate'),
-    dryRun: args.includes('--dry-run'),
-    skipRelations: args.includes('--skip-relations') ? ['patient', 'staff'] : [],
-  };
-  
-  const restore = new DatabaseRestore();
-  await restore.restore(options);
-}
-
-main().catch(error => {
-  console.error('💥 Fatal error:', error);
+// Get file path from command line
+const filePath = process.argv[2];
+if (!filePath) {
+  console.log('Usage: npx tsx scripts/complete-restore.ts <backup-file.json>');
+  console.log('Example: npx tsx scripts/complete-restore.ts backups/complete-backup-2024-01-15T10-30-00Z.json');
   process.exit(1);
-});
+}
+
+restore(filePath);

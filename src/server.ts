@@ -9,12 +9,13 @@ import { connectDatabase, disconnectDatabase } from './config/database';
 import { connectRedis, disconnectRedis } from './config/redis';
 import { swaggerSpec } from './config/swagger';
 import { errorHandler, notFound } from './middleware/errorHandler';
-import { apiLimiter } from './middleware/rateLimiter';
+import { generalLimiter } from './middleware/rateLimiter';
 import logger, { stream } from './utils/logger';
 import routes from './routes';
 
 class Server {
   public app: Application;
+
 
   constructor() {
     this.app = express();
@@ -52,7 +53,7 @@ class Server {
     }
 
     // Rate limiting
-    this.app.use(apiLimiter);
+    this.app.use(generalLimiter);
 
     // Request ID and timestamp
     this.app.use((req, res, next) => {
@@ -94,21 +95,21 @@ class Server {
       await connectDatabase();
 
       // Connect to Redis (optional)
-      if (config.redis.enabled) {
-        await connectRedis();
-      }
+      // if (config.redis.enabled) {
+      //   await connectRedis();
+      // }
 
       // Start server
       const server = this.app.listen(config.port, () => {
         logger.info(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   DKUT MEDICAL CENTER API                                ║
+║   DKUT MEDICAL CENTER API                                 ║
 ║                                                           ║
-║   Environment: ${config.env.toUpperCase().padEnd(44)}║
+║   Environment: ${config.env.toUpperCase().padEnd(43)}║
 ║   Port: ${config.port.toString().padEnd(50)}║
-║   API Prefix: ${config.apiPrefix.padEnd(46)}║
-║   Documentation: ${`${config.app.url}/api-docs`.padEnd(40)}║
+║   API Prefix: ${config.apiPrefix.padEnd(44)}║
+║   Documentation: ${`${config.app.url}/api-docs`.padEnd(41)}║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
         `);
@@ -122,7 +123,7 @@ class Server {
           logger.info('HTTP server closed');
           
           await disconnectDatabase();
-          await disconnectRedis();
+          // await disconnectRedis();
           
           logger.info('Application shutdown complete');
           process.exit(0);

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken, JWTPayload } from '../utils/helpers.js';
-import { ApiError } from './errorHandler.js';
-import logger from '../utils/logger.js';
+import { verifyToken, JWTPayload } from '../utils/helpers';
+import { ApiError } from './errorHandler';
+import logger from '../utils/logger';
 
 // Extend Express Request type
 declare global {

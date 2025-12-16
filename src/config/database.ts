@@ -1,5 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import logger from '../utils/logger.js';
+import logger from '../utils/logger';
+import dotenv from "dotenv"
+
+dotenv.config()
 
 declare global {
   var prisma: PrismaClient | undefined;
@@ -19,7 +22,7 @@ const prisma = globalThis.prisma ?? prismaClientSingleton();
 
 // Log queries in development
 if (process.env.NODE_ENV === 'development') {
-  prisma.$on('query', (e) => {
+  prisma.$on('query' as never, (e: any) => {
     logger.debug(`Query: ${e.query}`);
     logger.debug(`Duration: ${e.duration}ms`);
   });

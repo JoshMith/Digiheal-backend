@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { config } from '../config/env.js';
+import { config } from '../config/env';
 
 // Password hashing
 export const hashPassword = async (password: string): Promise<string> => {
@@ -17,30 +17,41 @@ export const comparePassword = async (
 
 // JWT token generation
 export interface JWTPayload {
-  userId: string;
+  userId: string | number;
   email: string;
   role: string;
 }
 
 export const generateToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
-  });
+  const secret = config.jwt.secret;
+  if (!secret) {
+    throw new Error('JWT secret is not configured');
+  }
+  const expiresIn = config.jwt.expiresIn || '24h';
+  
+  return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
 };
 
 export const generateRefreshToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  });
+  const secret = config.jwt.secret;
+  if (!secret) {
+    throw new Error('JWT secret is not configured');
+  }
+  const expiresIn = config.jwt.refreshExpiresIn || '7d';
+  
+  return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JWTPayload => {
-  return jwt.verify(token, config.jwt.secret) as JWTPayload;
+  const secret = config.jwt.secret;
+  if (!secret) {
+    throw new Error('JWT secret is not configured');
+  }
+  return jwt.verify(token, secret) as JWTPayload;
 };
-
 // Date formatting
 export const formatDate = (date: Date): string => {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split('T')[0] || '';
 };
 
 export const formatDateTime = (date: Date): string => {
@@ -133,7 +144,9 @@ export const calculateBMI = (weightKg: number, heightCm: number): number => {
 
 // Time utilities
 export const parseTime = (timeString: string): { hours: number; minutes: number } => {
-  const [hours, minutes] = timeString.split(':').map(Number);
+  const parts = timeString.split(':');
+  const hours = parseInt(parts[0] || '0', 10);
+  const minutes = parseInt(parts[1] || '0', 10);
   return { hours, minutes };
 };
 
@@ -163,7 +176,7 @@ export const getAllowedFileTypes = (category: string): string[] => {
     prescriptions: ['.pdf', '.jpg', '.jpeg', '.png'],
     imaging: ['.jpg', '.jpeg', '.png', '.dcm'],
   };
-  return fileTypes[category] || fileTypes.medical_records;
+  return fileTypes[category] ?? fileTypes.medical_records ?? [];
 };
 
 export const isValidFileType = (filename: string, allowedTypes: string[]): boolean => {

@@ -17,7 +17,42 @@ export const phoneSchema = z
 
 export const studentIdSchema = z
   .string()
-  .regex(/^DKUT\/\d{4}\/\d{5}$/, 'Invalid student ID format (e.g., DKUT/2024/12345)');
+  .regex(
+    /^[A-Z]\d{3}-01-\d{4}\/\d{4}$/,
+    'Invalid student ID format (e.g., C025-01-2325/2022)'
+  )
+  .refine(
+    (value) => {
+      // Extract parts for additional validation if needed
+      const parts = value.split('-');
+      if (parts.length !== 3) return false;
+      
+      const [courseCode, campusCode, rest] = parts;
+      if (!courseCode || !campusCode || !rest) return false;
+      
+      const [studentNumber, cohortYear] = rest.split('/');
+      if (!studentNumber || !cohortYear) return false;
+      
+      // Validate course code: one letter followed by three digits
+      if (!/^[A-Z]\d{3}$/.test(courseCode)) return false;
+      
+      // Validate campus code: always "01" for DKUT Nyeri
+      if (campusCode !== '01') return false;
+      
+      // Validate student number: exactly 4 digits
+      if (!/^\d{4}$/.test(studentNumber)) return false;
+      
+      // Validate cohort year: exactly 4 digits
+      if (!/^\d{4}$/.test(cohortYear)) return false;
+      
+      // Validate cohort year is reasonable (e.g., 2000-2030)
+      const year = parseInt(cohortYear, 10);
+      return year >= 2000 && year <= 2030;
+    },
+    {
+      message: 'Invalid student ID structure. Expected format: C025-01-2325/2022'
+    }
+  );
 
 export const dateSchema = z.string().refine((date) => {
   const parsed = new Date(date);
@@ -67,7 +102,7 @@ export const patientRegistrationSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(50),
   lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50),
   dateOfBirth: dateSchema,
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
   phone: phoneSchema,
   nationality: z.string().min(2).max(50).optional(),
   address: z.string().min(5).max(200).optional(),

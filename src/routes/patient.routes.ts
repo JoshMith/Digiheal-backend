@@ -3,7 +3,7 @@ import { PatientController } from '../controllers/patient.controller';
 import { authenticate, requireRole } from '../middleware/auth';
 import { validateRequest } from '../middleware/validate';
 
-const router = Router();
+const router: Router = Router();
 
 // All routes require authentication
 router.use(authenticate);

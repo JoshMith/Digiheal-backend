@@ -5,6 +5,9 @@ import patientRoutes from './patient.routes';
 import appointmentRoutes from './appointment.routes';
 import staffRoutes from './staff.routes';
 import consultationRoutes from './consultation.routes';
+import dotenv from 'dotenv'
+
+dotenv.config();
 
 const router: Router = Router();
 

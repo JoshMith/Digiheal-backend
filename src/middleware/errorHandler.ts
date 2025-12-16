@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
-import logger from '../utils/logger.js';
-import { getValidationErrors } from '../utils/validators.js';
+import logger from '../utils/logger';
+import { getValidationErrors } from '../utils/validators';
 
 /**
  * Custom API Error class for operational errors
@@ -16,7 +16,7 @@ export class ApiError extends Error {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = isOperational;
-    this.errors = errors;
+    this.errors = errors ?? [];
     
     // Maintains proper stack trace for where error was thrown
     Error.captureStackTrace(this, this.constructor);

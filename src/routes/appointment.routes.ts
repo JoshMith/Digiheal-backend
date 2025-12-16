@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AppointmentController } from '../controllers/appointment.controller';
 import { authenticate, requireRole } from '../middleware/auth';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authenticate);
 

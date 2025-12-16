@@ -62,16 +62,15 @@ export class AuthController {
           dateOfBirth: new Date(validatedData.dateOfBirth),
           gender: validatedData.gender,
           phone: validatedData.phone,
-          nationality: validatedData.nationality,
-          address: validatedData.address,
-          bloodGroup: validatedData.bloodGroup,
-          emergencyContactName: validatedData.emergencyContactName,
-          emergencyContactRelationship:
-            validatedData.emergencyContactRelationship,
-          emergencyContactPhone: validatedData.emergencyContactPhone,
-          emergencyContactEmail: validatedData.emergencyContactEmail,
-          insuranceProvider: validatedData.insuranceProvider,
-          policyNumber: validatedData.policyNumber,
+          nationality: validatedData.nationality ?? null,
+          address: validatedData.address ?? null,
+          bloodGroup: validatedData.bloodGroup ?? null,
+          emergencyContactName: validatedData.emergencyContactName ?? null,
+          emergencyContactRelationship: validatedData.emergencyContactRelationship ?? null,
+          emergencyContactPhone: validatedData.emergencyContactPhone ?? null,
+          emergencyContactEmail: validatedData.emergencyContactEmail ?? null,
+          insuranceProvider: validatedData.insuranceProvider ?? null,
+          policyNumber: validatedData.policyNumber ?? null,
           allergies: validatedData.allergies || [],
           chronicConditions: validatedData.chronicConditions || [],
           currentMedications: validatedData.currentMedications || [],
@@ -195,18 +194,8 @@ export class AuthController {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: String(req.user.userId) },
       include: {
-        patient: true,
-        staff: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        isActive: true,
-        lastLogin: true,
-        createdAt: true,
         patient: true,
         staff: true,
       },
@@ -239,7 +228,7 @@ export class AuthController {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: String(req.user.userId) },
     });
 
     if (!user) {
@@ -272,6 +261,42 @@ export class AuthController {
       message: 'Password changed successfully',
     });
   });
+
+/**
+ * Change user role (Admin only)
+ * @route PUT /api/auth/users/:userId/role
+ */
+changeUserRole = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params; // Target user ID from URL params
+  const { newRole } = req.body;
+  
+  // Validate role
+  if (!newRole || !['PATIENT', 'STAFF', 'ADMIN'].includes(newRole)) {
+    throw new ApiError(400, 'Valid new role is required');
+  }
+  
+  // Find target user
+  const user = await prisma.user.findUnique({
+    where: { id: String(userId) },
+  });
+  
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+  
+  // Update role
+  await prisma.user.update({
+    where: { id: String(userId) },
+    data: { role: newRole },
+  });
+  
+  logger.info(`Role changed for user: ${user.email} to ${newRole}`);
+  
+  res.json({
+    success: true,
+    message: 'User role changed successfully',
+  });
+});
 
   /**
    * Logout (client-side token removal)

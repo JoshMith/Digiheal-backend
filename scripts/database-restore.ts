@@ -4,6 +4,28 @@ import readline from 'readline';
 
 const prisma = new PrismaClient();
 
+// Define a type-safe way to access models
+type PrismaModels = {
+  system_settings: typeof prisma.system_settings;
+  user: typeof prisma.user;
+  patient: typeof prisma.patient;
+  staff: typeof prisma.staff;
+  notification_preferences: typeof prisma.notification_preferences;
+  appointment_slots: typeof prisma.appointment_slots;
+  health_assessment: typeof prisma.healthAssessment;
+  medical_record: typeof prisma.medicalRecord;
+  appointment: typeof prisma.appointment;
+  consultation: typeof prisma.consultation;
+  vital_signs: typeof prisma.vitalSign;
+  prescription: typeof prisma.prescription;
+  feedback: typeof prisma.feedback;
+  notification: typeof prisma.notification;
+  ml_prediction_logs: typeof prisma.mlPredictionLogs;
+  virtual_consultations: typeof prisma.virtualConsultations;
+  waitlist: typeof prisma.waitlist;
+  audit_logs: typeof prisma.auditLogs;
+};
+
 async function restore(filePath: string) {
   console.log('🚀 Starting complete restore...\n');
   
@@ -55,39 +77,60 @@ async function restore(filePath: string) {
     console.log('\n🗑️  Deleting existing data (in reverse order)...');
     
     // Delete in reverse dependency order (children first, parents last)
-    const deleteOrder = [
-      // Child tables
-      'ml_prediction_logs',
-      'virtual_consultations',
-      'vital_signs',
-      'feedbacks',
-      'notifications',
-      'prescriptions',
-      'waitlists',
-      'consultations',
-      'appointments',
-      'medical_records',
-      'health_assessments',
-      'appointment_slots',
-      'notification_preferences',
-      'audit_logs',
-      
-      // Main tables
-      'patients',
-      'staff',
-      'users',
-      
-      // System tables
-      'system_settings'
-    ];
+    // Note: Using explicit calls to avoid TypeScript errors
+    console.log('  Deleting ml_prediction_logs...');
+    await prisma.mLPredictionLog.deleteMany({});
     
-    for (const table of deleteOrder) {
-      const model = table as keyof PrismaClient;
-      if (prisma[model] && prisma[model]['deleteMany']) {
-        const result = await (prisma[model] as any).deleteMany({});
-        console.log(`  Deleted ${result.count} records from ${table}`);
-      }
-    }
+    console.log('  Deleting virtual_consultations...');
+    await prisma.virtualConsultation.deleteMany({});
+    
+    console.log('  Deleting vital_signs...');
+    await prisma.vitalSign.deleteMany({});
+    
+    console.log('  Deleting feedbacks...');
+    await prisma.feedback.deleteMany({});
+    
+    console.log('  Deleting notifications...');
+    await prisma.notification.deleteMany({});
+    
+    console.log('  Deleting prescriptions...');
+    await prisma.prescription.deleteMany({});
+    
+    console.log('  Deleting waitlists...');
+    await prisma.waitlist.deleteMany({});
+    
+    console.log('  Deleting consultations...');
+    await prisma.consultation.deleteMany({});
+    
+    console.log('  Deleting appointments...');
+    await prisma.appointment.deleteMany({});
+    
+    console.log('  Deleting medical_records...');
+    await prisma.medicalRecord.deleteMany({});
+    
+    console.log('  Deleting health_assessments...');
+    await prisma.healthAssessment.deleteMany({});
+    
+    console.log('  Deleting appointment_slots...');
+    await prisma.appointmentSlot.deleteMany({});
+    
+    console.log('  Deleting notification_preferences...');
+    await prisma.notificationPreference.deleteMany({});
+    
+    console.log('  Deleting audit_logs...');
+    await prisma.auditLog.deleteMany({});
+    
+    console.log('  Deleting patients...');
+    await prisma.patient.deleteMany({});
+    
+    console.log('  Deleting staff...');
+    await prisma.staff.deleteMany({});
+    
+    console.log('  Deleting users...');
+    await prisma.user.deleteMany({});
+    
+    console.log('  Deleting system_settings...');
+    await prisma.systemSettings.deleteMany({});
     
     console.log('✅ Existing data deleted.');
     
@@ -99,19 +142,41 @@ async function restore(filePath: string) {
       if (!data || data.length === 0) return;
       
       console.log(`  Restoring ${data.length} ${tableName}...`);
-      const model = tableName as keyof PrismaClient;
-      
-      if (!prisma[model] || !prisma[model]['createMany']) {
-        console.log(`  ⚠️  Skipping ${tableName} - no createMany method`);
-        return;
-      }
       
       try {
+        // Map table names to Prisma models
+        const modelMap: Record<string, any> = {
+          'system_settings': prisma.systemSettings,
+          'users': prisma.user,
+          'patients': prisma.patient,
+          'staff': prisma.staff,
+          'notification_preferences': prisma.notificationPreference,
+          'appointment_slots': prisma.appointmentSlot,
+          'health_assessments': prisma.healthAssessment,
+          'medical_records': prisma.medicalRecord,
+          'appointments': prisma.appointment,
+          'consultations': prisma.consultation,
+          'vital_signs': prisma.vitalSign,
+          'prescriptions': prisma.prescription,
+          'feedbacks': prisma.feedback,
+          'notifications': prisma.notification,
+          'ml_prediction_logs': prisma.mLPredictionLog,
+          'virtual_consultations': prisma.virtualConsultation,
+          'waitlists': prisma.waitlist,
+          'audit_logs': prisma.auditLog
+        };
+        
+        const model = modelMap[tableName];
+        if (!model || !model.createMany) {
+          console.log(`  ⚠️  Skipping ${tableName} - model not found`);
+          return;
+        }
+        
         // Batch inserts to avoid memory issues
         const batchSize = 100;
         for (let i = 0; i < data.length; i += batchSize) {
           const batch = data.slice(i, i + batchSize);
-          await (prisma[model] as any).createMany({
+          await model.createMany({
             data: batch,
             skipDuplicates: true
           });
@@ -119,21 +184,49 @@ async function restore(filePath: string) {
             console.log(`    ... ${Math.min(i + batchSize, data.length)} / ${data.length}`);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log(`  ⚠️  Error restoring ${tableName}:`, error.message);
         // Try individual inserts if batch fails
         console.log(`  Trying individual inserts for ${tableName}...`);
         for (const item of data) {
           try {
-            await (prisma[model] as any).create({
-              data: item
-            });
-          } catch (err) {
+            const model = getModel(tableName);
+            if (model && model.create) {
+              await model.create({
+                data: item
+              });
+            }
+          } catch (err: any) {
             console.log(`    Skipping item in ${tableName}:`, err.message);
           }
         }
       }
     };
+    
+    // Helper function to get model by name
+    function getModel(tableName: string) {
+      const modelMap: Record<string, any> = {
+        'system_settings': prisma.systemSettings,
+        'users': prisma.user,
+        'patients': prisma.patient,
+        'staff': prisma.staff,
+        'notification_preferences': prisma.notificationPreference,
+        'appointment_slots': prisma.appointmentSlot,
+        'health_assessments': prisma.healthAssessment,
+        'medical_records': prisma.medicalRecord,
+        'appointments': prisma.appointment,
+        'consultations': prisma.consultation,
+        'vital_signs': prisma.vitalSign,
+        'prescriptions': prisma.prescription,
+        'feedbacks': prisma.feedback,
+        'notifications': prisma.notification,
+        'ml_prediction_logs': prisma.mLPredictionLog,
+        'virtual_consultations': prisma.virtualConsultation,
+        'waitlists': prisma.waitlist,
+        'audit_logs': prisma.auditLog
+      };
+      return modelMap[tableName];
+    }
     
     // Restore in correct order
     const restoreOrder = [

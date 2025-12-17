@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import logger from '../utils/logger';
-import { getValidationErrors } from '../utils/validators';
 
 /**
  * Custom API Error class for operational errors
@@ -25,6 +24,16 @@ export class ApiError extends Error {
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
+
+/**
+ * Extract validation errors from ZodError
+ */
+export const getValidationErrors = (error: ZodError): Array<{ field: string; message: string }> => {
+  return error.errors.map((err) => ({
+    field: err.path.join('.'),
+    message: err.message,
+  }));
+};
 
 /**
  * Global error handler middleware

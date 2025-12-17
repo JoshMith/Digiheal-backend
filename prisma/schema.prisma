@@ -158,8 +158,10 @@ model Staff {
   email           String?      // Staff contact email
   department      Department
   position        StaffPosition
+  qualifications  String[]
   specialization  String?
   licenseNumber   String?
+  isActive        Boolean        @default(true)
   
   // Profile enhancements
   profilePicture  String?      // Avatar URL

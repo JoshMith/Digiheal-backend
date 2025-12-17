@@ -14,9 +14,10 @@ import {
   updateSessionStatus,
   cancelSession,
 } from '../controllers/virtualConsultation.controller';
-import { authenticate, authorize } from '../middleware/auth';
-import { validate } from '../middleware/validate';
+import { authenticate, authorize, requirePatient, requireStaffOrAdmin } from '../middleware/auth';
+// import { validate } from '../middleware/validate';
 import { z } from 'zod';
+import { AppointmentStatus } from '@prisma/client';
 
 const router = Router();
 
@@ -37,15 +38,7 @@ const endSessionSchema = z.object({
 
 const updateStatusSchema = z.object({
   body: z.object({
-    status: z.enum([
-      'SCHEDULED',
-      'WAITING_ROOM',
-      'IN_PROGRESS',
-      'COMPLETED',
-      'CANCELLED',
-      'TECHNICAL_FAILURE',
-      'NO_SHOW',
-    ]),
+    status: z.nativeEnum(AppointmentStatus),
     technicalIssues: z.string().max(500).optional(),
   }),
 });
@@ -60,7 +53,7 @@ const cancelSchema = z.object({
 router.post(
   '/',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   validate(createSessionSchema),
   createVirtualSession
 );
@@ -68,21 +61,21 @@ router.post(
 router.get(
   '/staff/upcoming',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   getStaffSessions
 );
 
 router.post(
   '/:id/staff-join',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   staffJoinSession
 );
 
 router.post(
   '/:id/end',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   validate(endSessionSchema),
   endSession
 );
@@ -90,7 +83,7 @@ router.post(
 router.patch(
   '/:id/status',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   validate(updateStatusSchema),
   updateSessionStatus
 );
@@ -99,14 +92,14 @@ router.patch(
 router.get(
   '/patient/upcoming',
   authenticate,
-  authorize(['PATIENT']),
+  requirePatient,
   getPatientSessions
 );
 
 router.post(
   '/:id/patient-join',
   authenticate,
-  authorize(['PATIENT']),
+  requirePatient,
   patientJoinSession
 );
 

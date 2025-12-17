@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { ConsultationController } from '../controllers/consultation.controller';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, requireStaffOrAdmin } from '../middleware/auth';
 
 const router:Router = Router();
 
 router.use(authenticate);
-router.use(requireRole('STAFF', 'ADMIN'));
+router.use(requireStaffOrAdmin);
 
 router.post('/', ConsultationController.createConsultation);
 router.get('/:id', ConsultationController.getConsultationById);

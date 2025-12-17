@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { StaffController } from '../controllers/staff.controller';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireAdmin, requireRole, requireStaffOrAdmin } from '../middleware/auth';
 
 const router: Router = Router();
 
 router.use(authenticate);
-router.use(requireRole('STAFF', 'ADMIN'));
+router.use(requireStaffOrAdmin);
 
-router.post('/', requireRole('ADMIN'), StaffController.createStaff);
+router.post('/', requireAdmin, StaffController.createStaff);
 router.get('/', StaffController.getAllStaff);
 router.get('/:id', StaffController.getStaffById);
 router.put('/:id', StaffController.updateStaff);

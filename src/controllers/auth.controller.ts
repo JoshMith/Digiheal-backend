@@ -12,14 +12,16 @@ import {
   validate,
   loginSchema,
   patientRegistrationSchema,
+  staffRegistrationSchema,
 } from '../utils/validators';
+import { UserRole } from '../types';
 
 export class AuthController {
   /**
    * Register a new patient
-   * @route POST /api/v1/auth/register
+   * @route POST /api/v1/auth/register/patient
    */
-  register = asyncHandler(async (req: Request, res: Response) => {
+  registerPatient = asyncHandler(async (req: Request, res: Response) => {
     const validatedData = validate(patientRegistrationSchema, req.body);
 
     // Check if user already exists
@@ -84,20 +86,20 @@ export class AuthController {
     const token = generateToken({
       userId: result.user.id,
       email: result.user.email,
-      role: result.user.role,
+      role: result.user.role as UserRole,
     });
 
     const refreshToken = generateRefreshToken({
       userId: result.user.id,
       email: result.user.email,
-      role: result.user.role,
+      role: result.user.role as UserRole,
     });
 
     logger.info(`New patient registered: ${result.patient.studentId}`);
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Patient registration successful',
       data: {
         user: {
           id: result.user.id,
@@ -117,13 +119,122 @@ export class AuthController {
   });
 
   /**
-   * Login user
+   * Register a new staff member
+   * @route POST /api/v1/auth/register/staff
+   */
+  registerStaff = asyncHandler(async (req: Request, res: Response) => {
+    const validatedData = validate(staffRegistrationSchema, req.body);
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: validatedData.email },
+    });
+
+    if (existingUser) {
+      throw new ApiError(409, 'User with this email already exists');
+    }
+
+    // Check if staff ID already exists
+    const existingStaff = await prisma.staff.findUnique({
+      where: { staffId: validatedData.staffId },
+    });
+
+    if (existingStaff) {
+      throw new ApiError(409, 'Staff ID already registered');
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(validatedData.password);
+
+    // Create user and staff in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: validatedData.email,
+          passwordHash,
+          role: 'STAFF',
+          // Staff accounts may require admin approval - set isActive based on your business logic
+          isActive: true, // or false if admin approval is needed
+        },
+      });
+
+      const staff = await tx.staff.create({
+        data: {
+          userId: user.id,
+          staffId: validatedData.staffId,
+          firstName: validatedData.firstName,
+          lastName: validatedData.lastName,
+          department: validatedData.department,
+          position: validatedData.position,
+          phone: validatedData.phone,
+          specialization: validatedData.specialization ?? null,
+          licenseNumber: validatedData.licenseNumber ?? null,
+          qualifications: validatedData.qualifications || [],
+          isActive: true,
+        },
+      });
+
+      return { user, staff };
+    });
+
+    // Generate tokens
+    const token = generateToken({
+      userId: result.user.id,
+      email: result.user.email,
+      role: result.user.role as UserRole,
+    });
+
+    const refreshToken = generateRefreshToken({
+      userId: result.user.id,
+      email: result.user.email,
+      role: result.user.role as UserRole,
+    });
+
+    logger.info(`New staff registered: ${result.staff.staffId}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Staff registration successful',
+      data: {
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+        },
+        staff: {
+          id: result.staff.id,
+          staffId: result.staff.staffId,
+          firstName: result.staff.firstName,
+          lastName: result.staff.lastName,
+          department: result.staff.department,
+          position: result.staff.position,
+        },
+        token,
+        refreshToken,
+      },
+    });
+  });
+
+  /**
+   * Legacy register endpoint (for backwards compatibility - defaults to patient)
+   * @route POST /api/v1/auth/register
+   */
+  register = asyncHandler(async (req: Request, res: Response) => {
+    // Delegate to patient registration
+    return this.registerPatient(req, res, next => {
+      throw next;
+    }
+    );
+  });
+
+  /**
+   * Login user (both patient and staff)
    * @route POST /api/v1/auth/login
    */
   login = asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = validate(loginSchema, req.body);
 
-    // Find user
+    // Find user with their profile
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -157,16 +268,19 @@ export class AuthController {
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as UserRole,
     });
 
     const refreshToken = generateRefreshToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as UserRole,
     });
 
-    logger.info(`User logged in: ${user.email}`);
+    logger.info(`User logged in: ${user.email} (${user.role})`);
+
+    // Determine profile based on role
+    const profile = user.role === 'PATIENT' ? user.patient : user.staff;
 
     res.json({
       success: true,
@@ -177,7 +291,7 @@ export class AuthController {
           email: user.email,
           role: user.role,
         },
-        profile: user.patient || user.staff,
+        profile,
         token,
         refreshToken,
       },
@@ -205,10 +319,117 @@ export class AuthController {
       throw new ApiError(404, 'User not found');
     }
 
+    // Remove sensitive data
+    const { passwordHash, ...safeUser } = user;
+
     res.json({
       success: true,
-      data: user,
+      data: {
+        ...safeUser,
+        profile: user.role === 'PATIENT' ? user.patient : user.staff,
+      },
     });
+  });
+
+  /**
+   * Update current user profile
+   * @route PUT /api/v1/auth/profile
+   */
+  updateProfile = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: String(req.user.userId) },
+      include: {
+        patient: true,
+        staff: true,
+      },
+    });
+
+    if (!user) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    // Update based on role
+    if (user.role === 'PATIENT' && user.patient) {
+      const {
+        firstName,
+        lastName,
+        phone,
+        address,
+        nationality,
+        bloodGroup,
+        emergencyContactName,
+        emergencyContactRelationship,
+        emergencyContactPhone,
+        emergencyContactEmail,
+        allergies,
+        chronicConditions,
+        currentMedications,
+      } = req.body;
+
+      const updatedPatient = await prisma.patient.update({
+        where: { id: user.patient.id },
+        data: {
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(phone && { phone }),
+          ...(address !== undefined && { address: address ?? null }),
+          ...(nationality !== undefined && { nationality: nationality ?? null }),
+          ...(bloodGroup !== undefined && { bloodGroup: bloodGroup ?? null }),
+          ...(emergencyContactName !== undefined && { emergencyContactName: emergencyContactName ?? null }),
+          ...(emergencyContactRelationship !== undefined && { emergencyContactRelationship: emergencyContactRelationship ?? null }),
+          ...(emergencyContactPhone !== undefined && { emergencyContactPhone: emergencyContactPhone ?? null }),
+          ...(emergencyContactEmail !== undefined && { emergencyContactEmail: emergencyContactEmail ?? null }),
+          ...(allergies && { allergies }),
+          ...(chronicConditions && { chronicConditions }),
+          ...(currentMedications && { currentMedications }),
+        },
+      });
+
+      logger.info(`Patient profile updated: ${updatedPatient.studentId}`);
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: updatedPatient,
+      });
+    } else if ((user.role === 'STAFF' || user.role === 'ADMIN') && user.staff) {
+      const {
+        firstName,
+        lastName,
+        phone,
+        specialization,
+        licenseNumber,
+        qualifications,
+        isAvailable,
+      } = req.body;
+
+      const updatedStaff = await prisma.staff.update({
+        where: { id: user.staff.id },
+        data: {
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(phone && { phone }),
+          ...(specialization !== undefined && { specialization: specialization ?? null }),
+          ...(licenseNumber !== undefined && { licenseNumber: licenseNumber ?? null }),
+          ...(qualifications && { qualifications }),
+          ...(isAvailable !== undefined && { isAvailable }),
+        },
+      });
+
+      logger.info(`Staff profile updated: ${updatedStaff.staffId}`);
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: updatedStaff,
+      });
+    } else {
+      throw new ApiError(400, 'Unable to update profile');
+    }
   });
 
   /**
@@ -224,6 +445,10 @@ export class AuthController {
 
     if (!currentPassword || !newPassword) {
       throw new ApiError(400, 'Current and new password are required');
+    }
+
+    if (newPassword.length < 8) {
+      throw new ApiError(400, 'New password must be at least 8 characters long');
     }
 
     // Find user
@@ -262,53 +487,178 @@ export class AuthController {
     });
   });
 
-/**
- * Change user role (Admin only)
- * @route PUT /api/auth/users/:userId/role
- */
-changeUserRole = asyncHandler(async (req: Request, res: Response) => {
-  const { userId } = req.params; // Target user ID from URL params
-  const { newRole } = req.body;
-  
-  // Validate role
-  if (!newRole || !['PATIENT', 'STAFF', 'ADMIN'].includes(newRole)) {
-    throw new ApiError(400, 'Valid new role is required');
-  }
-  
-  // Find target user
-  const user = await prisma.user.findUnique({
-    where: { id: String(userId) },
+  /**
+   * Change user role (Admin only)
+   * @route PUT /api/v1/auth/users/:userId/role
+   */
+  changeUserRole = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    // Check if current user is admin
+    const currentUser = await prisma.user.findUnique({
+      where: { id: String(req.user.userId) },
+    });
+
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      throw new ApiError(403, 'Only admins can change user roles');
+    }
+
+    const { userId } = req.params;
+    const { newRole } = req.body;
+
+    // Validate role
+    const validRoles = ['PATIENT', 'STAFF', 'ADMIN'];
+    if (!newRole || !validRoles.includes(newRole)) {
+      throw new ApiError(400, 'Valid new role is required (PATIENT, STAFF, ADMIN)');
+    }
+
+    // Find target user
+    const user = await prisma.user.findUnique({
+      where: { id: String(userId) },
+    });
+
+    if (!user) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    // Prevent changing own role
+    if (user.id === currentUser.id) {
+      throw new ApiError(400, 'Cannot change your own role');
+    }
+
+    // Update role
+    const updatedUser = await prisma.user.update({
+      where: { id: String(userId) },
+      data: { role: newRole },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    logger.info(`Role changed for user: ${user.email} from ${user.role} to ${newRole} by admin ${currentUser.email}`);
+
+    res.json({
+      success: true,
+      message: 'User role changed successfully',
+      data: updatedUser,
+    });
   });
-  
-  if (!user) {
-    throw new ApiError(404, 'User not found');
-  }
-  
-  // Update role
-  await prisma.user.update({
-    where: { id: String(userId) },
-    data: { role: newRole },
+
+  /**
+   * Refresh access token
+   * @route POST /api/v1/auth/refresh-token
+   */
+  refreshToken = asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      throw new ApiError(400, 'Refresh token is required');
+    }
+
+    // In a production system, you would:
+    // 1. Verify the refresh token
+    // 2. Check if it's been revoked
+    // 3. Generate new tokens
+    // For simplicity, we'll just verify and regenerate
+
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+      });
+
+      if (!user || !user.isActive) {
+        throw new ApiError(401, 'Invalid refresh token');
+      }
+
+      const newToken = generateToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role as UserRole,
+      });
+
+      const newRefreshToken = generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role as UserRole,
+      });
+
+      res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          token: newToken,
+          refreshToken: newRefreshToken,
+        },
+      });
+    } catch (error) {
+      throw new ApiError(401, 'Invalid or expired refresh token');
+    }
   });
-  
-  logger.info(`Role changed for user: ${user.email} to ${newRole}`);
-  
-  res.json({
-    success: true,
-    message: 'User role changed successfully',
-  });
-});
 
   /**
    * Logout (client-side token removal)
    * @route POST /api/v1/auth/logout
    */
   logout = asyncHandler(async (req: Request, res: Response) => {
-    // In a more complex system, you might invalidate tokens here
+    // In a more complex system with token blacklisting:
+    // 1. Add the token to a blacklist
+    // 2. Clear any server-side sessions
     logger.info(`User logged out: ${req.user?.email}`);
 
     res.json({
       success: true,
       message: 'Logout successful',
+    });
+  });
+
+  /**
+   * Deactivate account (soft delete)
+   * @route DELETE /api/v1/auth/account
+   */
+  deactivateAccount = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      throw new ApiError(400, 'Password is required to deactivate account');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: String(req.user.userId) },
+    });
+
+    if (!user) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    // Verify password
+    const isPasswordValid = await comparePassword(password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      throw new ApiError(401, 'Invalid password');
+    }
+
+    // Deactivate account
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: false },
+    });
+
+    logger.info(`Account deactivated: ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Account deactivated successfully',
     });
   });
 }

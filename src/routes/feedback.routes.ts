@@ -11,9 +11,10 @@ import {
   getMyFeedback,
   deleteFeedback,
 } from '../controllers/feedback.controller';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, requireAdmin, requirePatient, requireStaffOrAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { z } from 'zod';
+import { FeedbackCategory } from '@prisma/client';
 
 const router = Router();
 
@@ -23,17 +24,7 @@ const createFeedbackSchema = z.object({
     appointmentId: z.string().uuid().optional(),
     staffId: z.string().uuid().optional(),
     rating: z.number().min(1).max(5),
-    category: z.enum([
-      'SERVICE',
-      'STAFF',
-      'FACILITY',
-      'APPOINTMENT',
-      'VIRTUAL_CONSULTATION',
-      'TRIAGE_ACCURACY',
-      'WAIT_TIME',
-      'COMMUNICATION',
-      'OTHER',
-    ]),
+    category: z.nativeEnum(FeedbackCategory),
     comments: z.string().max(1000).optional(),
     isAnonymous: z.boolean().optional(),
   }),
@@ -49,7 +40,7 @@ const respondSchema = z.object({
 router.post(
   '/',
   authenticate,
-  authorize(['PATIENT']),
+  requirePatient,
   validate(createFeedbackSchema),
   createFeedback
 );
@@ -57,7 +48,7 @@ router.post(
 router.get(
   '/my-feedback',
   authenticate,
-  authorize(['PATIENT']),
+  requirePatient,
   getMyFeedback
 );
 
@@ -65,28 +56,28 @@ router.get(
 router.get(
   '/',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   getAllFeedback
 );
 
 router.get(
   '/analytics',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   getFeedbackAnalytics
 );
 
 router.get(
   '/:id',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   getFeedbackById
 );
 
 router.post(
   '/:id/respond',
   authenticate,
-  authorize(['STAFF', 'ADMIN']),
+  requireStaffOrAdmin,
   validate(respondSchema),
   respondToFeedback
 );
@@ -95,7 +86,7 @@ router.post(
 router.delete(
   '/:id',
   authenticate,
-  authorize(['ADMIN']),
+  requireAdmin,
   deleteFeedback
 );
 

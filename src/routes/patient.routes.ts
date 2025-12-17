@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { PatientController } from '../controllers/patient.controller';
-import { authenticate, requireRole } from '../middleware/auth';
-import { validateRequest } from '../middleware/validate';
+import { authenticate, requireStaffOrAdmin } from '../middleware/auth';
 
 const router: Router = Router();
 
@@ -17,6 +16,6 @@ router.get('/:id/history', PatientController.getPatientMedicalHistory);
 router.get('/:id/stats', PatientController.getPatientStats);
 
 // Admin/Staff only routes
-router.get('/', requireRole('STAFF', 'ADMIN'), PatientController.getAllPatients);
+router.get('/', requireStaffOrAdmin, PatientController.getAllPatients);
 
 export default router;

@@ -1,11 +1,17 @@
+// ============================================
 // User and Authentication Types
+// ============================================
+
 export interface User {
   id: string;
   email: string;
   role: UserRole;
   isActive: boolean;
+  lastLogin?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  patient?: Patient | null;
+  staff?: Staff | null;
 }
 
 export enum UserRole {
@@ -18,15 +24,80 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
+  iat?: number;
+  exp?: number;
 }
 
 export interface AuthResponse {
-  user: User;
-  token: string;
-  expiresIn: string;
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: string;
+      email: string;
+      role: UserRole;
+    };
+    profile?: Patient | Staff | null;
+    token: string;
+    refreshToken: string;
+  };
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface PatientRegistrationRequest {
+  email: string;
+  password: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: Gender;
+  phone: string;
+  nationality?: string;
+  address?: string;
+  bloodGroup?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  emergencyContactEmail?: string;
+  insuranceProvider?: string;
+  policyNumber?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  currentMedications?: string[];
+}
+
+export interface StaffRegistrationRequest {
+  email: string;
+  password: string;
+  staffId: string;
+  firstName: string;
+  lastName: string;
+  department: Department;
+  position: StaffPosition;
+  phone: string;
+  specialization?: string;
+  licenseNumber?: string;
+  qualifications?: string[];
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ChangeRoleRequest {
+  newRole: UserRole;
+}
+
+// ============================================
 // Patient Types
+// ============================================
+
 export interface Patient {
   id: string;
   userId: string;
@@ -35,17 +106,23 @@ export interface Patient {
   lastName: string;
   dateOfBirth: Date;
   gender: Gender;
-  phoneNumber: string;
-  bloodGroup?: string;
+  phone: string;
+  nationality?: string | null;
+  address?: string | null;
+  bloodGroup?: string | null;
   allergies: string[];
   chronicConditions: string[];
   currentMedications: string[];
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  insuranceProvider?: string;
-  insurancePolicyNumber?: string;
+  emergencyContactName?: string | null;
+  emergencyContactRelationship?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactEmail?: string | null;
+  insuranceProvider?: string | null;
+  policyNumber?: string | null;
+  profileImage?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  user?: User;
 }
 
 export enum Gender {
@@ -55,7 +132,10 @@ export enum Gender {
   PREFER_NOT_TO_SAY = 'PREFER_NOT_TO_SAY'
 }
 
+// ============================================
 // Staff Types
+// ============================================
+
 export interface Staff {
   id: string;
   userId: string;
@@ -64,12 +144,15 @@ export interface Staff {
   lastName: string;
   department: Department;
   position: StaffPosition;
-  specialization?: string;
-  licenseNumber?: string;
-  phoneNumber: string;
+  specialization?: string | null;
+  licenseNumber?: string | null;
+  phone: string;
+  qualifications: string[];
   isAvailable: boolean;
+  profileImage?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  user?: User;
 }
 
 export enum Department {
@@ -83,7 +166,11 @@ export enum Department {
   LABORATORY = 'LABORATORY',
   RADIOLOGY = 'RADIOLOGY',
   NURSING = 'NURSING',
-  ADMINISTRATION = 'ADMINISTRATION'
+  ADMINISTRATION = 'ADMINISTRATION',
+  CARDIOLOGY = 'CARDIOLOGY',
+  DERMATOLOGY = 'DERMATOLOGY',
+  ORTHOPEDICS = 'ORTHOPEDICS',
+  GYNECOLOGY = 'GYNECOLOGY'
 }
 
 export enum StaffPosition {
@@ -93,10 +180,16 @@ export enum StaffPosition {
   LAB_TECHNICIAN = 'LAB_TECHNICIAN',
   RADIOLOGIST = 'RADIOLOGIST',
   ADMINISTRATOR = 'ADMINISTRATOR',
-  RECEPTIONIST = 'RECEPTIONIST'
+  RECEPTIONIST = 'RECEPTIONIST',
+  SPECIALIST = 'SPECIALIST',
+  CONSULTANT = 'CONSULTANT',
+  INTERN = 'INTERN'
 }
 
+// ============================================
 // Health Assessment Types
+// ============================================
+
 export interface HealthAssessment {
   id: string;
   patientId: string;
@@ -105,10 +198,11 @@ export interface HealthAssessment {
   severityScore: number;
   urgency: UrgencyLevel;
   recommendations: string[];
-  confidence?: number;
-  additionalInfo?: any;
+  confidence?: number | null;
+  additionalInfo?: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  patient?: Patient;
 }
 
 export enum UrgencyLevel {
@@ -140,12 +234,15 @@ export interface MLPredictionResponse {
   confidence?: number;
 }
 
+// ============================================
 // Appointment Types
+// ============================================
+
 export interface Appointment {
   id: string;
   patientId: string;
-  staffId?: string;
-  healthAssessmentId?: string;
+  staffId?: string | null;
+  healthAssessmentId?: string | null;
   appointmentDate: Date;
   appointmentTime: string;
   duration: number;
@@ -153,17 +250,20 @@ export interface Appointment {
   appointmentType: AppointmentType;
   status: AppointmentStatus;
   priority: PriorityLevel;
-  queueNumber?: number;
-  estimatedWaitTime?: number;
-  reason?: string;
-  notes?: string;
-  checkedInAt?: Date;
-  startedAt?: Date;
-  completedAt?: Date;
-  cancelledAt?: Date;
-  cancellationReason?: string;
+  queueNumber?: number | null;
+  estimatedWaitTime?: number | null;
+  reason?: string | null;
+  notes?: string | null;
+  checkedInAt?: Date | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+  cancelledAt?: Date | null;
+  cancellationReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  patient?: Patient;
+  staff?: Staff | null;
+  healthAssessment?: HealthAssessment | null;
 }
 
 export enum AppointmentType {
@@ -193,45 +293,59 @@ export enum PriorityLevel {
   URGENT = 'URGENT'
 }
 
+// ============================================
 // Consultation Types
+// ============================================
+
 export interface Consultation {
   id: string;
   appointmentId: string;
   staffId: string;
   patientId: string;
   chiefComplaint: string;
-  historyOfPresentIllness?: string;
-  physicalExamination?: any;
-  vitalSignsId?: string;
+  historyOfPresentIllness?: string | null;
+  physicalExamination?: Record<string, unknown> | null;
+  vitalSignsId?: string | null;
   primaryDiagnosis: string;
   differentialDiagnosis: string[];
-  clinicalAssessment?: string;
-  treatmentPlan?: string;
-  followUpInstructions?: string;
-  consultationNotes?: string;
+  clinicalAssessment?: string | null;
+  treatmentPlan?: string | null;
+  followUpInstructions?: string | null;
+  consultationNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  appointment?: Appointment;
+  staff?: Staff;
+  patient?: Patient;
+  vitalSigns?: VitalSigns | null;
 }
 
+// ============================================
 // Vital Signs Types
+// ============================================
+
 export interface VitalSigns {
   id: string;
   patientId: string;
-  consultationId?: string;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  heartRate?: number;
-  temperature?: number;
-  weight?: number;
-  height?: number;
-  oxygenSaturation?: number;
-  respiratoryRate?: number;
-  bmi?: number;
+  consultationId?: string | null;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  heartRate?: number | null;
+  temperature?: number | null;
+  weight?: number | null;
+  height?: number | null;
+  oxygenSaturation?: number | null;
+  respiratoryRate?: number | null;
+  bmi?: number | null;
   recordedAt: Date;
   createdAt: Date;
+  patient?: Patient;
 }
 
+// ============================================
 // Prescription Types
+// ============================================
+
 export interface Prescription {
   id: string;
   consultationId: string;
@@ -240,11 +354,13 @@ export interface Prescription {
   dosage: string;
   frequency: string;
   duration: string;
-  instructions?: string;
+  instructions?: string | null;
   status: PrescriptionStatus;
   prescribedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  consultation?: Consultation;
+  patient?: Patient;
 }
 
 export enum PrescriptionStatus {
@@ -254,19 +370,24 @@ export enum PrescriptionStatus {
   EXPIRED = 'EXPIRED'
 }
 
+// ============================================
 // Medical Records Types
+// ============================================
+
 export interface MedicalRecord {
   id: string;
   patientId: string;
-  consultationId?: string;
+  consultationId?: string | null;
   recordType: RecordType;
   title: string;
-  description?: string;
-  fileUrl?: string;
-  metadata?: any;
+  description?: string | null;
+  fileUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
   uploadedBy: string;
   createdAt: Date;
   updatedAt: Date;
+  patient?: Patient;
+  consultation?: Consultation | null;
 }
 
 export enum RecordType {
@@ -278,7 +399,10 @@ export enum RecordType {
   OTHER = 'OTHER'
 }
 
+// ============================================
 // Notification Types
+// ============================================
+
 export interface Notification {
   id: string;
   patientId: string;
@@ -287,10 +411,11 @@ export interface Notification {
   message: string;
   priority: PriorityLevel;
   read: boolean;
-  readAt?: Date;
-  metadata?: any;
-  expiresAt?: Date;
+  readAt?: Date | null;
+  metadata?: Record<string, unknown> | null;
+  expiresAt?: Date | null;
   createdAt: Date;
+  patient?: Patient;
 }
 
 export enum NotificationType {
@@ -302,7 +427,10 @@ export enum NotificationType {
   FOLLOW_UP_REQUIRED = 'FOLLOW_UP_REQUIRED'
 }
 
+// ============================================
 // Queue Management Types
+// ============================================
+
 export interface QueueItem {
   id: string;
   appointmentId: string;
@@ -311,11 +439,16 @@ export interface QueueItem {
   queueNumber: number;
   priority: PriorityLevel;
   status: AppointmentStatus;
-  estimatedWaitTime?: number;
+  estimatedWaitTime?: number | null;
   checkedInAt: Date;
+  appointment?: Appointment;
+  patient?: Patient;
 }
 
+// ============================================
 // Analytics Types
+// ============================================
+
 export interface DashboardStats {
   totalPatients: number;
   todayAppointments: number;
@@ -334,37 +467,46 @@ export interface DepartmentUtilization {
   utilizationRate: number;
 }
 
+// ============================================
 // Audit Log Types
+// ============================================
+
 export interface AuditLog {
   id: string;
   userId: string;
   action: string;
   entity: string;
   entityId: string;
-  changes?: any;
-  ipAddress?: string;
-  userAgent?: string;
+  changes?: Record<string, unknown> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: Date;
+  user?: User;
 }
 
+// ============================================
 // API Response Types
-export interface ApiResponse<T = any> {
+// ============================================
+
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
   error?: string;
   errors?: ValidationError[];
-  meta?: {
-    page?: number;
-    limit?: number;
-    total?: number;
-    totalPages?: number;
-  };
+  meta?: PaginationMeta;
 }
 
 export interface ValidationError {
   field: string;
   message: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface PaginationParams {
@@ -380,10 +522,20 @@ export interface FilterParams {
   status?: string;
   department?: Department;
   priority?: PriorityLevel;
-  [key: string]: any;
+  search?: string;
+  [key: string]: unknown;
 }
 
-// Request Extended Types (for Express)
-export interface AuthRequest extends Request {
-  user?: JWTPayload;
+// ============================================
+// Express Request Extension
+// ============================================
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JWTPayload;
+    }
+  }
 }
+
+export {};

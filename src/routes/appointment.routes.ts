@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppointmentController } from '../controllers/appointment.controller';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, requireStaffOrAdmin } from '../middleware/auth';
 
 const router: Router = Router();
 
@@ -12,7 +12,7 @@ router.get('/patient/:patientId', AppointmentController.getPatientAppointments);
 router.put('/:id', AppointmentController.updateAppointment);
 router.post('/:id/check-in', AppointmentController.checkInAppointment);
 router.post('/:id/cancel', AppointmentController.cancelAppointment);
-router.get('/department/:department/today', requireRole('STAFF', 'ADMIN'), AppointmentController.getTodayAppointments);
+router.get('/department/:department/today', requireStaffOrAdmin, AppointmentController.getTodayAppointments);
 router.get('/slots/available', AppointmentController.getAvailableSlots);
 
 export default router;

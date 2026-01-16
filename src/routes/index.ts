@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
-import healthAssessmentRoutes from './healthAssessment.routes';
 import patientRoutes from './patient.routes';
 import appointmentRoutes from './appointment.routes';
 import staffRoutes from './staff.routes';
-import consultationRoutes from './consultation.routes';
 import dotenv from 'dotenv'
+import analyticsRoutes from './analytics.routes';
+import interactionRoutes from './interaction.routes';
+import prescriptionRoutes from './prescription.routes';
 
 dotenv.config();
 
@@ -24,11 +25,14 @@ router.get('/health', (req, res) => {
 
 // Mount routes
 router.use('/auth', authRoutes);
-router.use('/health-assessments', healthAssessmentRoutes);
 router.use('/patients', patientRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/staff', staffRoutes);
-router.use('/consultations', consultationRoutes);
+router.use('/analytics', analyticsRoutes);
+router.use('/interactions', interactionRoutes);
+router.use('/prescriptions', prescriptionRoutes);
+
+
 
 // TODO: Add more routes as needed
 // router.use('/prescriptions', prescriptionRoutes);

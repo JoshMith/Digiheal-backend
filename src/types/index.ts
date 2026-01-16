@@ -5,6 +5,7 @@
 export interface User {
   id: string;
   email: string;
+  password: string; // Changed from passwordHash to match frontend
   role: UserRole;
   isActive: boolean;
   lastLogin?: Date | null;
@@ -16,7 +17,7 @@ export interface User {
 
 export enum UserRole {
   PATIENT = 'PATIENT',
-  STAFF = 'STAFF',
+  STAFF = 'STAFF', 
   ADMIN = 'ADMIN'
 }
 
@@ -24,6 +25,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
+  staffId?: string;
   iat?: number;
   exp?: number;
 }
@@ -121,16 +123,10 @@ export interface Patient {
   policyNumber?: string | null;
   profileImage?: string | null;
   createdAt: Date;
-  updatedAt: Date;
   user?: User;
 }
 
-export enum Gender {
-  MALE = 'MALE',
-  FEMALE = 'FEMALE',
-  OTHER = 'OTHER',
-  PREFER_NOT_TO_SAY = 'PREFER_NOT_TO_SAY'
-}
+export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 
 // ============================================
 // Staff Types
@@ -151,88 +147,25 @@ export interface Staff {
   isAvailable: boolean;
   profileImage?: string | null;
   createdAt: Date;
-  updatedAt: Date;
   user?: User;
 }
 
-export enum Department {
-  GENERAL_MEDICINE = 'GENERAL_MEDICINE',
-  EMERGENCY = 'EMERGENCY',
-  PEDIATRICS = 'PEDIATRICS',
-  MENTAL_HEALTH = 'MENTAL_HEALTH',
-  DENTAL = 'DENTAL',
-  OPHTHALMOLOGY = 'OPHTHALMOLOGY',
-  PHARMACY = 'PHARMACY',
-  LABORATORY = 'LABORATORY',
-  RADIOLOGY = 'RADIOLOGY',
-  NURSING = 'NURSING',
-  ADMINISTRATION = 'ADMINISTRATION',
-  CARDIOLOGY = 'CARDIOLOGY',
-  DERMATOLOGY = 'DERMATOLOGY',
-  ORTHOPEDICS = 'ORTHOPEDICS',
-  GYNECOLOGY = 'GYNECOLOGY'
-}
+export type Department = 
+  | 'GENERAL_MEDICINE'
+  | 'EMERGENCY'
+  | 'PEDIATRICS'
+  | 'MENTAL_HEALTH'
+  | 'DENTAL'
+  | 'PHARMACY'
+  | 'LABORATORY';
 
-export enum StaffPosition {
-  DOCTOR = 'DOCTOR',
-  NURSE = 'NURSE',
-  PHARMACIST = 'PHARMACIST',
-  LAB_TECHNICIAN = 'LAB_TECHNICIAN',
-  RADIOLOGIST = 'RADIOLOGIST',
-  ADMINISTRATOR = 'ADMINISTRATOR',
-  RECEPTIONIST = 'RECEPTIONIST',
-  SPECIALIST = 'SPECIALIST',
-  CONSULTANT = 'CONSULTANT',
-  INTERN = 'INTERN'
-}
-
-// ============================================
-// Health Assessment Types
-// ============================================
-
-export interface HealthAssessment {
-  id: string;
-  patientId: string;
-  symptoms: string[];
-  predictedDisease: string;
-  severityScore: number;
-  urgency: UrgencyLevel;
-  recommendations: string[];
-  confidence?: number | null;
-  additionalInfo?: Record<string, unknown> | null;
-  createdAt: Date;
-  updatedAt: Date;
-  patient?: Patient;
-}
-
-export enum UrgencyLevel {
-  LOW = 'LOW',
-  MODERATE = 'MODERATE',
-  URGENT = 'URGENT'
-}
-
-export enum SymptomSeverity {
-  MILD = 'MILD',
-  MODERATE = 'MODERATE',
-  SEVERE = 'SEVERE'
-}
-
-export interface MLPredictionRequest {
-  symptoms: string[];
-  age?: number;
-  gender?: Gender;
-  duration?: string;
-  severity?: SymptomSeverity;
-  additionalNotes?: string;
-}
-
-export interface MLPredictionResponse {
-  disease: string;
-  severity_score: number;
-  urgency: UrgencyLevel;
-  workouts: string[];
-  confidence?: number;
-}
+export type StaffPosition = 
+  | 'DOCTOR'
+  | 'NURSE'
+  | 'PHARMACIST'
+  | 'LAB_TECHNICIAN'
+  | 'ADMINISTRATOR'
+  | 'RECEPTIONIST';
 
 // ============================================
 // Appointment Types
@@ -242,104 +175,56 @@ export interface Appointment {
   id: string;
   patientId: string;
   staffId?: string | null;
-  healthAssessmentId?: string | null;
   appointmentDate: Date;
   appointmentTime: string;
   duration: number;
   department: Department;
-  appointmentType: AppointmentType;
+  type: AppointmentType;
   status: AppointmentStatus;
   priority: PriorityLevel;
   queueNumber?: number | null;
-  estimatedWaitTime?: number | null;
   reason?: string | null;
   notes?: string | null;
   checkedInAt?: Date | null;
   startedAt?: Date | null;
   completedAt?: Date | null;
   cancelledAt?: Date | null;
-  cancellationReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
   patient?: Patient;
   staff?: Staff | null;
-  healthAssessment?: HealthAssessment | null;
+  prescriptions?: Prescription[];
+  interaction?: Interaction | null;
 }
 
-export enum AppointmentType {
-  CONSULTATION = 'CONSULTATION',
-  FOLLOW_UP = 'FOLLOW_UP',
-  EMERGENCY = 'EMERGENCY',
-  ROUTINE_CHECKUP = 'ROUTINE_CHECKUP',
-  VACCINATION = 'VACCINATION',
-  LAB_TEST = 'LAB_TEST',
-  IMAGING = 'IMAGING'
-}
+export type AppointmentType = 
+  | 'WALK_IN'
+  | 'SCHEDULED'
+  | 'FOLLOW_UP'
+  | 'EMERGENCY'
+  | 'ROUTINE_CHECKUP';
 
-export enum AppointmentStatus {
-  SCHEDULED = 'SCHEDULED',
-  CHECKED_IN = 'CHECKED_IN',
-  WAITING = 'WAITING',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  NO_SHOW = 'NO_SHOW'
-}
+export type AppointmentStatus = 
+  | 'SCHEDULED'
+  | 'CHECKED_IN'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW';
 
-export enum PriorityLevel {
-  LOW = 'LOW',
-  NORMAL = 'NORMAL',
-  HIGH = 'HIGH',
-  URGENT = 'URGENT'
-}
+export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
-// ============================================
-// Consultation Types
-// ============================================
-
-export interface Consultation {
-  id: string;
-  appointmentId: string;
-  staffId: string;
-  patientId: string;
-  chiefComplaint: string;
-  historyOfPresentIllness?: string | null;
-  physicalExamination?: Record<string, unknown> | null;
-  vitalSignsId?: string | null;
-  primaryDiagnosis: string;
-  differentialDiagnosis: string[];
-  clinicalAssessment?: string | null;
-  treatmentPlan?: string | null;
-  followUpInstructions?: string | null;
-  consultationNotes?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  appointment?: Appointment;
-  staff?: Staff;
-  patient?: Patient;
-  vitalSigns?: VitalSigns | null;
-}
-
-// ============================================
-// Vital Signs Types
-// ============================================
-
-export interface VitalSigns {
-  id: string;
-  patientId: string;
-  consultationId?: string | null;
-  bloodPressureSystolic?: number | null;
-  bloodPressureDiastolic?: number | null;
-  heartRate?: number | null;
-  temperature?: number | null;
-  weight?: number | null;
-  height?: number | null;
-  oxygenSaturation?: number | null;
-  respiratoryRate?: number | null;
-  bmi?: number | null;
-  recordedAt: Date;
-  createdAt: Date;
-  patient?: Patient;
+export interface CreateAppointmentRequest {
+  patientId?: string;
+  staffId?: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  duration?: number;
+  department: Department;
+  type: AppointmentType;
+  priority?: PriorityLevel;
+  reason?: string;
+  notes?: string;
 }
 
 // ============================================
@@ -348,55 +233,131 @@ export interface VitalSigns {
 
 export interface Prescription {
   id: string;
-  consultationId: string;
   patientId: string;
+  staffId: string;
+  appointmentId?: string | null;
   medicationName: string;
   dosage: string;
   frequency: string;
   duration: string;
+  quantity?: number | null;
   instructions?: string | null;
   status: PrescriptionStatus;
   prescribedAt: Date;
+  expiresAt?: Date | null;
+  dispensedAt?: Date | null;
   createdAt: Date;
-  updatedAt: Date;
-  consultation?: Consultation;
   patient?: Patient;
+  staff?: Staff;
+  appointment?: Appointment | null;
 }
 
-export enum PrescriptionStatus {
-  ACTIVE = 'ACTIVE',
-  COMPLETED = 'COMPLETED',
-  DISCONTINUED = 'DISCONTINUED',
-  EXPIRED = 'EXPIRED'
+export type PrescriptionStatus = 'ACTIVE' | 'DISPENSED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+
+export interface CreatePrescriptionRequest {
+  patientId: string;
+  staffId: string;
+  appointmentId?: string;
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  quantity?: number;
+  instructions?: string;
+  expiresAt?: string;
 }
 
 // ============================================
-// Medical Records Types
+// Interaction (Time Tracking) Types
 // ============================================
 
-export interface MedicalRecord {
+export interface Interaction {
+  id: string;
+  appointmentId: string;
+  patientId: string;
+  staffId: string;
+  department: Department;
+  priority: PriorityLevel;
+  appointmentType: AppointmentType;
+  symptomCount: number;
+
+  // Time tracking phases
+  checkInTime: Date;
+  vitalsStartTime?: Date | null;
+  vitalsEndTime?: Date | null;
+  interactionStartTime?: Date | null;
+  interactionEndTime?: Date | null;
+  checkoutTime?: Date | null;
+
+  // Calculated durations (in minutes)
+  vitalsDuration?: number | null;
+  interactionDuration?: number | null;
+  totalDuration?: number | null;
+
+  // ML prediction
+  predictedDuration?: number | null;
+
+  createdAt: Date;
+  
+  appointment?: Appointment;
+  patient?: Patient;
+  staff?: Staff;
+}
+
+export interface StartInteractionRequest {
+  appointmentId: string;
+  patientId: string;
+  staffId: string;
+  department: Department;
+  priority: PriorityLevel;
+  appointmentType: AppointmentType;
+  symptomCount?: number;
+}
+
+export interface UpdateInteractionRequest {
+  vitalsStartTime?: string;
+  vitalsEndTime?: string;
+  interactionStartTime?: string;
+  interactionEndTime?: string;
+  checkoutTime?: string;
+}
+
+export type InteractionPhase = 
+  | 'CHECKED_IN'
+  | 'VITALS_IN_PROGRESS'
+  | 'VITALS_COMPLETE'
+  | 'INTERACTION_IN_PROGRESS'
+  | 'COMPLETED';
+
+// ============================================
+// Vital Signs Types
+// ============================================
+
+export interface VitalSigns {
   id: string;
   patientId: string;
-  consultationId?: string | null;
-  recordType: RecordType;
-  title: string;
-  description?: string | null;
-  fileUrl?: string | null;
-  metadata?: Record<string, unknown> | null;
-  uploadedBy: string;
-  createdAt: Date;
-  updatedAt: Date;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  heartRate?: number | null;
+  temperature?: number | null;
+  weight?: number | null;
+  height?: number | null;
+  oxygenSaturation?: number | null;
+  respiratoryRate?: number | null;
+  recordedAt: Date;
   patient?: Patient;
-  consultation?: Consultation | null;
 }
 
-export enum RecordType {
-  LAB_RESULT = 'LAB_RESULT',
-  IMAGING = 'IMAGING',
-  VACCINATION = 'VACCINATION',
-  SURGERY = 'SURGERY',
-  DISCHARGE_SUMMARY = 'DISCHARGE_SUMMARY',
-  OTHER = 'OTHER'
+export interface CreateVitalSignsRequest {
+  patientId: string;
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  heartRate?: number;
+  temperature?: number;
+  weight?: number;
+  height?: number;
+  oxygenSaturation?: number;
+  respiratoryRate?: number;
 }
 
 // ============================================
@@ -412,76 +373,91 @@ export interface Notification {
   priority: PriorityLevel;
   read: boolean;
   readAt?: Date | null;
-  metadata?: Record<string, unknown> | null;
-  expiresAt?: Date | null;
   createdAt: Date;
   patient?: Patient;
 }
 
-export enum NotificationType {
-  APPOINTMENT_REMINDER = 'APPOINTMENT_REMINDER',
-  LAB_RESULTS_READY = 'LAB_RESULTS_READY',
-  MEDICATION_REMINDER = 'MEDICATION_REMINDER',
-  URGENT_HEALTH_ALERT = 'URGENT_HEALTH_ALERT',
-  SYSTEM_ANNOUNCEMENT = 'SYSTEM_ANNOUNCEMENT',
-  FOLLOW_UP_REQUIRED = 'FOLLOW_UP_REQUIRED'
-}
-
-// ============================================
-// Queue Management Types
-// ============================================
-
-export interface QueueItem {
-  id: string;
-  appointmentId: string;
-  patientId: string;
-  department: Department;
-  queueNumber: number;
-  priority: PriorityLevel;
-  status: AppointmentStatus;
-  estimatedWaitTime?: number | null;
-  checkedInAt: Date;
-  appointment?: Appointment;
-  patient?: Patient;
-}
+export type NotificationType = 
+  | 'APPOINTMENT_REMINDER'
+  | 'PRESCRIPTION_READY'
+  | 'MEDICATION_REMINDER'
+  | 'SYSTEM_ANNOUNCEMENT';
 
 // ============================================
 // Analytics Types
 // ============================================
 
-export interface DashboardStats {
+export interface AnalyticsSummary {
   totalPatients: number;
-  todayAppointments: number;
-  pendingAppointments: number;
-  completedAppointments: number;
-  urgentCases: number;
+  todayPatients: number;
+  weekPatients: number;
+  monthPatients: number;
   averageWaitTime: number;
-  departmentUtilization: DepartmentUtilization[];
+  averageInteractionDuration: number;
+  appointmentCompletionRate: number;
+  noShowRate: number;
 }
 
-export interface DepartmentUtilization {
+export interface DepartmentStats {
   department: Department;
-  totalAppointments: number;
-  activeAppointments: number;
+  patientCount: number;
   averageWaitTime: number;
-  utilizationRate: number;
+  averageInteractionTime: number;
+}
+
+export interface TimeSeriesData {
+  date: string;
+  value: number;
+}
+
+export interface AppointmentTypeStats {
+  type: AppointmentType;
+  count: number;
+  percentage: number;
+}
+
+export interface StaffPerformance {
+  staffId: string;
+  staffName: string;
+  patientsServed: number;
+  averageInteractionTime: number;
+}
+
+export interface MLPredictionStats {
+  totalPredictions: number;
+  accuracyRate: number;
+  averageError: number;
 }
 
 // ============================================
-// Audit Log Types
+// ML Service Types
 // ============================================
 
-export interface AuditLog {
-  id: string;
-  userId: string;
-  action: string;
-  entity: string;
-  entityId: string;
-  changes?: Record<string, unknown> | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  createdAt: Date;
-  user?: User;
+export interface MLPredictionRequest {
+  department: string;
+  priority: string;
+  appointmentType: string;
+  symptomCount: number;
+  timeOfDay?: number;
+  dayOfWeek?: number;
+}
+
+export interface MLPredictionResponse {
+  predictedDuration: number;
+  confidence: number;
+  modelVersion: string;
+}
+
+// ============================================
+// Queue Types
+// ============================================
+
+export interface QueueItem {
+  interaction: Interaction;
+  appointment: Appointment;
+  patient: Patient;
+  estimatedWaitTime?: number;
+  position: number;
 }
 
 // ============================================
@@ -525,6 +501,74 @@ export interface FilterParams {
   search?: string;
   [key: string]: unknown;
 }
+
+// ============================================
+// Display Helper Types (for UI mapping)
+// ============================================
+
+export const DEPARTMENT_DISPLAY: Record<Department, string> = {
+  GENERAL_MEDICINE: 'General Medicine',
+  EMERGENCY: 'Emergency',
+  PEDIATRICS: 'Pediatrics',
+  MENTAL_HEALTH: 'Mental Health',
+  DENTAL: 'Dental',
+  PHARMACY: 'Pharmacy',
+  LABORATORY: 'Laboratory',
+};
+
+export const POSITION_DISPLAY: Record<StaffPosition, string> = {
+  DOCTOR: 'Doctor',
+  NURSE: 'Nurse',
+  PHARMACIST: 'Pharmacist',
+  LAB_TECHNICIAN: 'Lab Technician',
+  ADMINISTRATOR: 'Administrator',
+  RECEPTIONIST: 'Receptionist',
+};
+
+export const GENDER_DISPLAY: Record<Gender, string> = {
+  MALE: 'Male',
+  FEMALE: 'Female',
+  OTHER: 'Other',
+};
+
+export const APPOINTMENT_STATUS_DISPLAY: Record<AppointmentStatus, string> = {
+  SCHEDULED: 'Scheduled',
+  CHECKED_IN: 'Checked In',
+  IN_PROGRESS: 'In Progress',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  NO_SHOW: 'No Show',
+};
+
+export const APPOINTMENT_TYPE_DISPLAY: Record<AppointmentType, string> = {
+  WALK_IN: 'Walk-in',
+  SCHEDULED: 'Scheduled',
+  FOLLOW_UP: 'Follow-up',
+  EMERGENCY: 'Emergency',
+  ROUTINE_CHECKUP: 'Routine Checkup',
+};
+
+export const PRIORITY_DISPLAY: Record<PriorityLevel, string> = {
+  LOW: 'Low',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
+export const PRESCRIPTION_STATUS_DISPLAY: Record<PrescriptionStatus, string> = {
+  ACTIVE: 'Active',
+  DISPENSED: 'Dispensed',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  EXPIRED: 'Expired',
+};
+
+export const NOTIFICATION_TYPE_DISPLAY: Record<NotificationType, string> = {
+  APPOINTMENT_REMINDER: 'Appointment Reminder',
+  PRESCRIPTION_READY: 'Prescription Ready',
+  MEDICATION_REMINDER: 'Medication Reminder',
+  SYSTEM_ANNOUNCEMENT: 'System Announcement',
+};
 
 // ============================================
 // Express Request Extension

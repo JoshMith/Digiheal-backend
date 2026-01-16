@@ -24,9 +24,33 @@ export class AuthController {
   registerPatient = asyncHandler(async (req: Request, res: Response) => {
     const validatedData = validate(patientRegistrationSchema, req.body);
 
+    // Type assertion to fix TypeScript errors
+    const data = validatedData as {
+      email: string;
+      password: string;
+      studentId: string;
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      gender: 'MALE' | 'FEMALE' | 'OTHER';
+      phone: string;
+      nationality?: string;
+      address?: string;
+      bloodGroup?: string;
+      emergencyContactName?: string;
+      emergencyContactRelationship?: string;
+      emergencyContactPhone?: string;
+      emergencyContactEmail?: string;
+      insuranceProvider?: string;
+      policyNumber?: string;
+      allergies?: string[];
+      chronicConditions?: string[];
+      currentMedications?: string[];
+    };
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: data.email },
     });
 
     if (existingUser) {
@@ -35,7 +59,7 @@ export class AuthController {
 
     // Check if student ID already exists
     const existingStudent = await prisma.patient.findUnique({
-      where: { studentId: validatedData.studentId },
+      where: { studentId: data.studentId },
     });
 
     if (existingStudent) {
@@ -43,14 +67,14 @@ export class AuthController {
     }
 
     // Hash password
-    const passwordHash = await hashPassword(validatedData.password);
+    const hashedPassword = await hashPassword(data.password);
 
     // Create user and patient in transaction
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: validatedData.email,
-          passwordHash,
+          email: data.email,
+          password: hashedPassword,
           role: 'PATIENT',
         },
       });
@@ -58,24 +82,17 @@ export class AuthController {
       const patient = await tx.patient.create({
         data: {
           userId: user.id,
-          studentId: validatedData.studentId,
-          firstName: validatedData.firstName,
-          lastName: validatedData.lastName,
-          dateOfBirth: new Date(validatedData.dateOfBirth),
-          gender: validatedData.gender,
-          phone: validatedData.phone,
-          nationality: validatedData.nationality ?? null,
-          address: validatedData.address ?? null,
-          bloodGroup: validatedData.bloodGroup ?? null,
-          emergencyContactName: validatedData.emergencyContactName ?? null,
-          emergencyContactRelationship: validatedData.emergencyContactRelationship ?? null,
-          emergencyContactPhone: validatedData.emergencyContactPhone ?? null,
-          emergencyContactEmail: validatedData.emergencyContactEmail ?? null,
-          insuranceProvider: validatedData.insuranceProvider ?? null,
-          policyNumber: validatedData.policyNumber ?? null,
-          allergies: validatedData.allergies || [],
-          chronicConditions: validatedData.chronicConditions || [],
-          currentMedications: validatedData.currentMedications || [],
+          studentId: data.studentId,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          dateOfBirth: new Date(data.dateOfBirth),
+          gender: data.gender,
+          phone: data.phone,
+          bloodGroup: data.bloodGroup ?? null,
+          emergencyContactName: data.emergencyContactName ?? null,
+          emergencyContactPhone: data.emergencyContactPhone ?? null,
+          allergies: data.allergies || [],
+          chronicConditions: data.chronicConditions || [],
         },
       });
 
@@ -125,9 +142,23 @@ export class AuthController {
   registerStaff = asyncHandler(async (req: Request, res: Response) => {
     const validatedData = validate(staffRegistrationSchema, req.body);
 
+    // Type assertion
+    const data = validatedData as {
+      email: string;
+      password: string;
+      staffId: string;
+      firstName: string;
+      lastName: string;
+      department: string;
+      position: string;
+      phone: string;
+      specialization?: string;
+      licenseNumber?: string;
+    };
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: data.email },
     });
 
     if (existingUser) {
@@ -136,7 +167,7 @@ export class AuthController {
 
     // Check if staff ID already exists
     const existingStaff = await prisma.staff.findUnique({
-      where: { staffId: validatedData.staffId },
+      where: { staffId: data.staffId },
     });
 
     if (existingStaff) {
@@ -144,33 +175,30 @@ export class AuthController {
     }
 
     // Hash password
-    const passwordHash = await hashPassword(validatedData.password);
+    const hashedPassword = await hashPassword(data.password);
 
     // Create user and staff in transaction
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: validatedData.email,
-          passwordHash,
+          email: data.email,
+          password: hashedPassword,
           role: 'STAFF',
-          // Staff accounts may require admin approval - set isActive based on your business logic
-          isActive: true, // or false if admin approval is needed
+          isActive: true,
         },
       });
 
       const staff = await tx.staff.create({
         data: {
           userId: user.id,
-          staffId: validatedData.staffId,
-          firstName: validatedData.firstName,
-          lastName: validatedData.lastName,
-          department: validatedData.department,
-          position: validatedData.position,
-          phone: validatedData.phone,
-          specialization: validatedData.specialization ?? null,
-          licenseNumber: validatedData.licenseNumber ?? null,
-          qualifications: validatedData.qualifications || [],
-          isActive: true,
+          staffId: data.staffId,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          department: data.department as any,
+          position: data.position as any,
+          phone: data.phone,
+          specialization: data.specialization ?? null,
+          licenseNumber: data.licenseNumber ?? null,
         },
       });
 
@@ -216,23 +244,14 @@ export class AuthController {
   });
 
   /**
-   * Legacy register endpoint (for backwards compatibility - defaults to patient)
-   * @route POST /api/v1/auth/register
-   */
-  register = asyncHandler(async (req: Request, res: Response) => {
-    // Delegate to patient registration
-    return this.registerPatient(req, res, next => {
-      throw next;
-    }
-    );
-  });
-
-  /**
    * Login user (both patient and staff)
    * @route POST /api/v1/auth/login
    */
   login = asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = validate(loginSchema, req.body);
+    const { email, password } = validate(loginSchema, req.body) as {
+      email: string;
+      password: string;
+    };
 
     // Find user with their profile
     const user = await prisma.user.findUnique({
@@ -252,7 +271,7 @@ export class AuthController {
     }
 
     // Verify password
-    const isPasswordValid = await comparePassword(password, user.passwordHash);
+    const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
       throw new ApiError(401, 'Invalid email or password');
@@ -320,7 +339,7 @@ export class AuthController {
     }
 
     // Remove sensitive data
-    const { passwordHash, ...safeUser } = user;
+    const { password, ...safeUser } = user;
 
     res.json({
       success: true,
@@ -358,16 +377,11 @@ export class AuthController {
         firstName,
         lastName,
         phone,
-        address,
-        nationality,
         bloodGroup,
         emergencyContactName,
-        emergencyContactRelationship,
         emergencyContactPhone,
-        emergencyContactEmail,
         allergies,
         chronicConditions,
-        currentMedications,
       } = req.body;
 
       const updatedPatient = await prisma.patient.update({
@@ -376,16 +390,15 @@ export class AuthController {
           ...(firstName && { firstName }),
           ...(lastName && { lastName }),
           ...(phone && { phone }),
-          ...(address !== undefined && { address: address ?? null }),
-          ...(nationality !== undefined && { nationality: nationality ?? null }),
           ...(bloodGroup !== undefined && { bloodGroup: bloodGroup ?? null }),
-          ...(emergencyContactName !== undefined && { emergencyContactName: emergencyContactName ?? null }),
-          ...(emergencyContactRelationship !== undefined && { emergencyContactRelationship: emergencyContactRelationship ?? null }),
-          ...(emergencyContactPhone !== undefined && { emergencyContactPhone: emergencyContactPhone ?? null }),
-          ...(emergencyContactEmail !== undefined && { emergencyContactEmail: emergencyContactEmail ?? null }),
+          ...(emergencyContactName !== undefined && { 
+            emergencyContactName: emergencyContactName ?? null 
+          }),
+          ...(emergencyContactPhone !== undefined && { 
+            emergencyContactPhone: emergencyContactPhone ?? null 
+          }),
           ...(allergies && { allergies }),
           ...(chronicConditions && { chronicConditions }),
-          ...(currentMedications && { currentMedications }),
         },
       });
 
@@ -403,7 +416,6 @@ export class AuthController {
         phone,
         specialization,
         licenseNumber,
-        qualifications,
         isAvailable,
       } = req.body;
 
@@ -413,9 +425,12 @@ export class AuthController {
           ...(firstName && { firstName }),
           ...(lastName && { lastName }),
           ...(phone && { phone }),
-          ...(specialization !== undefined && { specialization: specialization ?? null }),
-          ...(licenseNumber !== undefined && { licenseNumber: licenseNumber ?? null }),
-          ...(qualifications && { qualifications }),
+          ...(specialization !== undefined && { 
+            specialization: specialization ?? null 
+          }),
+          ...(licenseNumber !== undefined && { 
+            licenseNumber: licenseNumber ?? null 
+          }),
           ...(isAvailable !== undefined && { isAvailable }),
         },
       });
@@ -463,7 +478,7 @@ export class AuthController {
     // Verify current password
     const isPasswordValid = await comparePassword(
       currentPassword,
-      user.passwordHash
+      user.password
     );
 
     if (!isPasswordValid) {
@@ -471,12 +486,12 @@ export class AuthController {
     }
 
     // Hash new password
-    const newPasswordHash = await hashPassword(newPassword);
+    const newHashedPassword = await hashPassword(newPassword);
 
     // Update password
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: newPasswordHash },
+      data: { password: newHashedPassword },
     });
 
     logger.info(`Password changed for user: ${user.email}`);
@@ -559,12 +574,6 @@ export class AuthController {
       throw new ApiError(400, 'Refresh token is required');
     }
 
-    // In a production system, you would:
-    // 1. Verify the refresh token
-    // 2. Check if it's been revoked
-    // 3. Generate new tokens
-    // For simplicity, we'll just verify and regenerate
-
     try {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
@@ -607,11 +616,7 @@ export class AuthController {
    * @route POST /api/v1/auth/logout
    */
   logout = asyncHandler(async (req: Request, res: Response) => {
-    // In a more complex system with token blacklisting:
-    // 1. Add the token to a blacklist
-    // 2. Clear any server-side sessions
     logger.info(`User logged out: ${req.user?.email}`);
-
     res.json({
       success: true,
       message: 'Logout successful',
@@ -642,7 +647,7 @@ export class AuthController {
     }
 
     // Verify password
-    const isPasswordValid = await comparePassword(password, user.passwordHash);
+    const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
       throw new ApiError(401, 'Invalid password');

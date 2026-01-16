@@ -10,22 +10,20 @@ const createStaffSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   department: z.enum([
     'GENERAL_MEDICINE',
-    'CARDIOLOGY',
-    'DERMATOLOGY',
-    'ORTHOPEDICS',
-    'GYNECOLOGY',
+    'EMERGENCY',
     'PEDIATRICS',
     'MENTAL_HEALTH',
-    'EMERGENCY',
-    'ADMINISTRATION',
+    'DENTAL',
+    'PHARMACY',
+    'LABORATORY'
   ]),
   position: z.enum([
-    'SENIOR_DOCTOR',
-    'JUNIOR_DOCTOR',
-    'CONSULTANT',
+    'DOCTOR',
     'NURSE',
+    'PHARMACIST',
+    'LAB_TECHNICIAN',
     'ADMINISTRATOR',
-    'RECEPTIONIST',
+    'RECEPTIONIST'
   ]),
   specialization: z.string().optional(),
   licenseNumber: z.string().optional(),
@@ -106,7 +104,8 @@ export class StaffController {
         _count: {
           select: {
             appointments: true,
-            consultations: true,
+            interactions: true,
+            prescriptions: true,
           },
         },
       },
@@ -127,10 +126,18 @@ export class StaffController {
     const skip = (page - 1) * limit;
     const department = req.query.department as string | undefined;
     const position = req.query.position as string | undefined;
+    const search = req.query.search as string | undefined;
 
     const where: any = {};
     if (department) where.department = department;
     if (position) where.position = position;
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { staffId: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [staff, total] = await Promise.all([
       prisma.staff.findMany({
@@ -225,7 +232,7 @@ export class StaffController {
         staffId: id,
         appointmentDate,
         status: {
-          in: ['SCHEDULED', 'CHECKED_IN', 'WAITING', 'IN_PROGRESS'],
+          in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'],
         },
       },
       include: {
@@ -260,39 +267,144 @@ export class StaffController {
     const [
       todayAppointments,
       totalAppointments,
-      completedConsultations,
+      completedInteractions,
       pendingAppointments,
     ] = await Promise.all([
       prisma.appointment.count({
         where: {
           staffId: id,
           appointmentDate: today,
-          status: { in: ['SCHEDULED', 'CHECKED_IN', 'WAITING', 'IN_PROGRESS'] },
+          status: { in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'] },
         },
       }),
       prisma.appointment.count({
         where: { staffId: id },
       }),
-      prisma.consultation.count({
-        where: { staffId: id },
+      prisma.interaction.count({
+        where: { 
+          staffId: id,
+          checkoutTime: { not: null }
+        },
       }),
       prisma.appointment.count({
         where: {
           staffId: id,
-          status: { in: ['SCHEDULED', 'CHECKED_IN', 'WAITING'] },
+          status: { in: ['SCHEDULED', 'CHECKED_IN'] },
           appointmentDate: { gte: today },
         },
       }),
     ]);
+
+    // Calculate average interaction duration
+    const interactionStats = await prisma.interaction.aggregate({
+      where: { 
+        staffId: id,
+        totalDuration: { not: null }
+      },
+      _avg: {
+        totalDuration: true
+      },
+      _count: true
+    });
 
     res.status(200).json({
       success: true,
       data: {
         todayAppointments,
         totalAppointments,
-        completedConsultations,
+        completedInteractions,
         pendingAppointments,
+        avgInteractionDuration: interactionStats._avg.totalDuration || 0,
+        totalInteractions: interactionStats._count
       },
+    });
+  });
+
+  // Get staff availability
+  static getStaffAvailability = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const date = req.query.date as string | undefined;
+
+    const today = date ? new Date(date) : new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const staff = await prisma.staff.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        isAvailable: true,
+        _count: {
+          select: {
+            appointments: {
+              where: {
+                appointmentDate: today,
+                status: { in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'] }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!staff) {
+      res.status(404).json({ success: false, error: 'Staff not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        staffId: staff.id,
+        name: `${staff.firstName} ${staff.lastName}`,
+        department: staff.department,
+        isAvailable: staff.isAvailable,
+        appointmentsToday: staff._count.appointments,
+        date: today.toISOString().split('T')[0]
+      }
+    });
+  });
+
+  // Update staff availability
+  static updateStaffAvailability = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const { isAvailable } = req.body;
+
+    if (typeof isAvailable !== 'boolean') {
+      res.status(400).json({ 
+        success: false, 
+        error: 'isAvailable must be a boolean' 
+      });
+      return;
+    }
+
+    const staff = await prisma.staff.findUnique({ where: { id } });
+
+    if (!staff) {
+      res.status(404).json({ success: false, error: 'Staff not found' });
+      return;
+    }
+
+    const updatedStaff = await prisma.staff.update({
+      where: { id },
+      data: { isAvailable },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        isAvailable: true
+      }
+    });
+
+    logger.info(`Staff availability updated: ${id} to ${isAvailable}`);
+
+    res.status(200).json({
+      success: true,
+      data: updatedStaff,
+      message: `Staff availability updated to ${isAvailable ? 'available' : 'unavailable'}`
     });
   });
 }

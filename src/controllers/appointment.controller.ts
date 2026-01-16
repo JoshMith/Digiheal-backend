@@ -7,31 +7,27 @@ import { asyncHandler } from '../middleware/errorHandler';
 // Validation schemas
 const createAppointmentSchema = z.object({
   patientId: z.string().uuid('Invalid patient ID'),
-  healthAssessmentId: z.string().uuid().optional(),
   appointmentDate: z.string().transform((val) => new Date(val)),
   appointmentTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format (HH:MM)'),
   duration: z.number().min(15).max(180).default(30),
   department: z.enum([
     'GENERAL_MEDICINE',
-    'CARDIOLOGY',
-    'DERMATOLOGY',
-    'ORTHOPEDICS',
-    'GYNECOLOGY',
+    'EMERGENCY',
     'PEDIATRICS',
     'MENTAL_HEALTH',
-    'EMERGENCY',
-    'ADMINISTRATION',
+    'DENTAL',
+    'PHARMACY',
+    'LABORATORY'
   ]),
-  appointmentType: z.enum([
-    'CONSULTATION',
+  type: z.enum([
+    'WALK_IN',
+    'SCHEDULED',
     'FOLLOW_UP',
-    'CHECK_UP',
     'EMERGENCY',
-    'VACCINATION',
+    'ROUTINE_CHECKUP'
   ]),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
-  chiefComplaint: z.string().min(5, 'Please provide a chief complaint'),
-  symptoms: z.array(z.string()).default([]),
+  reason: z.string().min(5, 'Please provide a reason'),
   notes: z.string().optional(),
 });
 
@@ -41,11 +37,10 @@ const updateAppointmentSchema = z.object({
   status: z.enum([
     'SCHEDULED',
     'CHECKED_IN',
-    'WAITING',
     'IN_PROGRESS',
     'COMPLETED',
     'CANCELLED',
-    'NO_SHOW',
+    'NO_SHOW'
   ]).optional(),
   staffId: z.string().uuid().optional(),
   notes: z.string().optional(),
@@ -80,7 +75,7 @@ export class AppointmentController {
         appointmentTime: validatedData.appointmentTime,
         department: validatedData.department,
         status: {
-          in: ['SCHEDULED', 'CHECKED_IN', 'WAITING', 'IN_PROGRESS'],
+          in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'],
         },
       },
     });
@@ -93,32 +88,17 @@ export class AppointmentController {
       return;
     }
 
-    // Determine priority from health assessment if provided
-    let priority = validatedData.priority;
-    if (validatedData.healthAssessmentId) {
-      const assessment = await prisma.healthAssessment.findUnique({
-        where: { id: validatedData.healthAssessmentId },
-      });
-
-      if (assessment) {
-        if (assessment.urgency === 'URGENT') priority = 'URGENT';
-        else if (assessment.urgency === 'MODERATE') priority = 'HIGH';
-      }
-    }
-
     const appointment = await prisma.appointment.create({
       data: {
         patientId: validatedData.patientId,
-        healthAssessmentId: validatedData.healthAssessmentId ?? null,
         appointmentDate: validatedData.appointmentDate,
         appointmentTime: validatedData.appointmentTime,
         duration: validatedData.duration,
         department: validatedData.department,
-        appointmentType: validatedData.appointmentType,
-        chiefComplaint: validatedData.chiefComplaint,
-        symptoms: validatedData.symptoms,
+        type: validatedData.type,
+        reason: validatedData.reason,
         notes: validatedData.notes ?? null,
-        priority,
+        priority: validatedData.priority,
         status: 'SCHEDULED',
       },
       include: {
@@ -130,7 +110,6 @@ export class AppointmentController {
             phone: true,
           },
         },
-        healthAssessment: true,
       },
     });
 
@@ -172,13 +151,8 @@ export class AppointmentController {
             specialization: true,
           },
         },
-        healthAssessment: true,
-        consultation: {
-          include: {
-            prescriptions: true,
-            vitalSigns: true,
-          },
-        },
+        prescriptions: true,
+        interaction: true,
       },
     });
 
@@ -199,8 +173,8 @@ export class AppointmentController {
   // Get appointments for a patient
   static getPatientAppointments = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const patientId = req.params.patientId as string;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const page = parseInt((req.query.page as string) || '1');
+    const limit = parseInt((req.query.limit as string) || '10');
     const skip = (page - 1) * limit;
     const status = req.query.status as string | undefined;
 
@@ -218,12 +192,6 @@ export class AppointmentController {
               firstName: true,
               lastName: true,
               department: true,
-            },
-          },
-          healthAssessment: {
-            select: {
-              predictedDisease: true,
-              urgency: true,
             },
           },
         },
@@ -263,7 +231,7 @@ export class AppointmentController {
       return;
     }
 
-    // Build update data object, converting undefined to null
+    // Build update data object
     const updateData: any = {};
     if (validatedData.appointmentDate !== undefined) {
       updateData.appointmentDate = validatedData.appointmentDate;
@@ -302,7 +270,6 @@ export class AppointmentController {
 
     logger.info(`Appointment updated: ${id}`, {
       appointmentId: id,
-      userId: req.user?.userId,
     });
 
     res.status(200).json({
@@ -342,7 +309,7 @@ export class AppointmentController {
         appointmentDate: appointment.appointmentDate,
         department: appointment.department,
         status: {
-          in: ['CHECKED_IN', 'WAITING', 'IN_PROGRESS'],
+          in: ['CHECKED_IN', 'IN_PROGRESS'],
         },
       },
     });
@@ -401,6 +368,7 @@ export class AppointmentController {
       data: {
         status: 'CANCELLED',
         notes: cancellationReason,
+        cancelledAt: new Date(),
       },
     });
 
@@ -427,7 +395,7 @@ export class AppointmentController {
         department: department as any,
         appointmentDate: today,
         status: {
-          in: ['SCHEDULED', 'CHECKED_IN', 'WAITING', 'IN_PROGRESS'],
+          in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'],
         },
       },
       include: {
@@ -473,7 +441,7 @@ export class AppointmentController {
         appointmentDate,
         department: department as any,
         status: {
-          in: ['SCHEDULED', 'CHECKED_IN', 'WAITING', 'IN_PROGRESS'],
+          in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'],
         },
       },
       select: {
@@ -505,6 +473,176 @@ export class AppointmentController {
         totalSlots: allSlots.length,
         availableCount: availableSlots.length,
       },
+    });
+  });
+
+  // Get appointments for staff
+  static getStaffAppointments = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const staffId = req.params.staffId as string;
+    const date = req.query.date as string | undefined;
+    const status = req.query.status as string | undefined;
+
+    const where: any = { staffId };
+    if (date) {
+      const appointmentDate = new Date(date);
+      appointmentDate.setHours(0, 0, 0, 0);
+      where.appointmentDate = appointmentDate;
+    }
+    if (status) {
+      where.status = status;
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      include: {
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+            studentId: true,
+          },
+        },
+      },
+      orderBy: [{ appointmentTime: 'asc' }],
+    });
+
+    res.status(200).json({
+      success: true,
+      data: appointments,
+    });
+  });
+
+  // Start appointment (when doctor begins consultation)
+  static startAppointment = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment) {
+      res.status(404).json({
+        success: false,
+        error: 'Appointment not found',
+      });
+      return;
+    }
+
+    if (appointment.status !== 'CHECKED_IN') {
+      res.status(400).json({
+        success: false,
+        error: 'Only checked-in appointments can be started',
+      });
+      return;
+    }
+
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id },
+      data: {
+        status: 'IN_PROGRESS',
+        startedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updatedAppointment,
+      message: 'Appointment started',
+    });
+  });
+
+  // Complete appointment
+  static completeAppointment = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment) {
+      res.status(404).json({
+        success: false,
+        error: 'Appointment not found',
+      });
+      return;
+    }
+
+    if (appointment.status !== 'IN_PROGRESS') {
+      res.status(400).json({
+        success: false,
+        error: 'Only in-progress appointments can be completed',
+      });
+      return;
+    }
+
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updatedAppointment,
+      message: 'Appointment completed',
+    });
+  });
+
+  // Get appointment statistics
+  static getAppointmentStats = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [
+      totalToday,
+      completedToday,
+      pendingToday,
+      byDepartment,
+      byStatus
+    ] = await Promise.all([
+      // Total appointments today
+      prisma.appointment.count({
+        where: { appointmentDate: today }
+      }),
+      // Completed today
+      prisma.appointment.count({
+        where: { 
+          appointmentDate: today,
+          status: 'COMPLETED'
+        }
+      }),
+      // Pending today (scheduled + checked in + in progress)
+      prisma.appointment.count({
+        where: { 
+          appointmentDate: today,
+          status: { in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'] }
+        }
+      }),
+      // Appointments by department
+      prisma.appointment.groupBy({
+        by: ['department'],
+        where: { appointmentDate: today },
+        _count: true
+      }),
+      // Appointments by status
+      prisma.appointment.groupBy({
+        by: ['status'],
+        where: { appointmentDate: today },
+        _count: true
+      })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalToday,
+        completedToday,
+        pendingToday,
+        byDepartment,
+        byStatus
+      }
     });
   });
 }

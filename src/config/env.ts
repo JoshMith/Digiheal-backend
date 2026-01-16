@@ -27,15 +27,7 @@ export const config = {
   // Database
   databaseUrl: process.env.DATABASE_URL || '',
   
-  // Redis Configuration
-  redis: {
-    enabled: process.env.REDIS_ENABLED !== 'false',
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    maxRetriesPerRequest: 3,
-    connectTimeout: 10000,
-    lazyConnect: true,
-  },
-  
+
   // CORS Configuration
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',

@@ -13,7 +13,7 @@ const router: Router = Router();
  *     summary: Register a new patient account (legacy endpoint)
  *     description: Create a new patient account with complete profile information
  */
-router.post('/register', registrationLimiter, authController.register);
+// router.post('/register', registrationLimiter, authController.register);
 
 /**
  * @swagger

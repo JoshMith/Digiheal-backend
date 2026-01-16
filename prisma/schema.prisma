@@ -1,7 +1,3 @@
-// prisma/schema.prisma
-// DKUT Medical Center - AI-Priority Patient Triage & Virtual Consultation System
-// Updated: Aligned with project objectives
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,36 +7,159 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==========================================
-// USER MANAGEMENT
-// ==========================================
-
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  passwordHash  String
-  role          UserRole
-  isActive      Boolean   @default(true)
-  lastLogin     DateTime?
-  
-  // Email verification & password reset (Objective 4: Email integration)
-  emailVerified     Boolean   @default(false)
-  verificationToken String?
-  verificationExpiry DateTime?
-  resetToken        String?
-  resetTokenExpiry  DateTime?
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime? // Soft delete for GDPR compliance
-  
-  // Relationships
-  patient       Patient?
-  staff         Staff?
-  
-  @@index([email])
-  @@index([isActive])
-  @@map("users")
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  role      UserRole
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  patient   Patient?
+  staff     Staff?
+}
+
+model Patient {
+  id                    String         @id @default(uuid())
+  userId                String         @unique
+  studentId             String         @unique
+  firstName             String
+  lastName              String
+  dateOfBirth           DateTime
+  gender                Gender
+  phone                 String
+  bloodGroup            String?
+  allergies             String[]
+  chronicConditions     String[]
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime       @default(now())
+  appointments          Appointment[]
+  interactions          Interaction[]
+  notifications         Notification[]
+  user                  User           @relation(fields: [userId], references: [id])
+  prescriptions         Prescription[]
+  vitalSigns            VitalSigns[]
+}
+
+model Staff {
+  id             String         @id @default(uuid())
+  userId         String         @unique
+  staffId        String         @unique
+  firstName      String
+  lastName       String
+  department     Department
+  position       StaffPosition
+  specialization String?
+  licenseNumber  String?
+  phone          String
+  isAvailable    Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  appointments   Appointment[]
+  interactions   Interaction[]
+  prescriptions  Prescription[]
+  user           User           @relation(fields: [userId], references: [id])
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  patientId       String
+  staffId         String?
+  appointmentDate DateTime
+  appointmentTime String
+  duration        Int               @default(30)
+  department      Department
+  type            AppointmentType
+  status          AppointmentStatus
+  priority        PriorityLevel
+  queueNumber     Int?
+  reason          String?
+  notes           String?
+  checkedInAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  staff           Staff?            @relation(fields: [staffId], references: [id])
+  interaction     Interaction?
+  prescriptions   Prescription[]
+}
+
+model Prescription {
+  id             String             @id @default(uuid())
+  patientId      String
+  staffId        String
+  appointmentId  String?
+  medicationName String
+  dosage         String
+  frequency      String
+  duration       String
+  quantity       Int?
+  instructions   String?
+  status         PrescriptionStatus
+  prescribedAt   DateTime           @default(now())
+  expiresAt      DateTime?
+  dispensedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  appointment    Appointment?       @relation(fields: [appointmentId], references: [id])
+  patient        Patient            @relation(fields: [patientId], references: [id])
+  staff          Staff              @relation(fields: [staffId], references: [id])
+}
+
+model Interaction {
+  id                   String          @id @default(uuid())
+  appointmentId        String          @unique
+  patientId            String
+  staffId              String
+  department           Department
+  priority             PriorityLevel
+  appointmentType      AppointmentType
+  symptomCount         Int             @default(0)
+  checkInTime          DateTime
+  vitalsStartTime      DateTime?
+  vitalsEndTime        DateTime?
+  interactionStartTime DateTime?
+  interactionEndTime   DateTime?
+  checkoutTime         DateTime?
+  vitalsDuration       Int?
+  interactionDuration  Int?
+  totalDuration        Int?
+  predictedDuration    Int?
+  createdAt            DateTime        @default(now())
+  appointment          Appointment     @relation(fields: [appointmentId], references: [id])
+  patient              Patient         @relation(fields: [patientId], references: [id])
+  staff                Staff           @relation(fields: [staffId], references: [id])
+}
+
+model VitalSigns {
+  id                     String   @id @default(uuid())
+  patientId              String
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+  heartRate              Int?
+  temperature            Float?
+  weight                 Float?
+  height                 Float?
+  oxygenSaturation       Int?
+  respiratoryRate        Int?
+  recordedAt             DateTime @default(now())
+  patient                Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  patientId String
+  type      NotificationType
+  title     String
+  message   String
+  priority  PriorityLevel
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  patient   Patient          @relation(fields: [patientId], references: [id])
 }
 
 enum UserRole {
@@ -49,874 +168,66 @@ enum UserRole {
   ADMIN
 }
 
-// ==========================================
-// PATIENT INFORMATION
-// ==========================================
-
-model Patient {
-  id                String    @id @default(uuid())
-  userId            String    @unique
-  studentId         String    @unique
-  firstName         String
-  lastName          String
-  dateOfBirth       DateTime
-  gender            Gender
-  phone             String
-  email             String?   @unique // Personal email for notifications
-  nationality       String?
-  address           String?
-  bloodGroup        BloodGroup?
-  
-  // Profile enhancements (Objective 1: Patient portal)
-  preferredName     String?
-  profilePicture    String?   // Avatar URL
-  studentStatus     StudentStatus @default(ACTIVE)
-  preferredLanguage String    @default("en")
-  
-  // Preferred communication channel (Objective 4: SMS/email reminders)
-  preferredNotificationChannel NotificationChannel @default(EMAIL)
-  
-  // Emergency Contact
-  emergencyContactName         String?
-  emergencyContactRelationship String?
-  emergencyContactPhone        String?
-  emergencyContactEmail        String?
-  
-  // Insurance
-  insuranceProvider String?
-  policyNumber      String?
-  
-  // Medical Info
-  allergies         String[]
-  chronicConditions String[]
-  currentMedications String[]
-  
-  // Accessibility
-  specialNeeds              String?
-  accessibilityRequirements String[]
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deletedAt         DateTime? // Soft delete
-  
-  // Relationships
-  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  appointments            Appointment[]
-  healthAssessments       HealthAssessment[]
-  medicalRecords          MedicalRecord[]
-  prescriptions           Prescription[]
-  vitals                  VitalSign[]
-  notifications           Notification[]
-  consultations           Consultation[]
-  virtualConsultations    VirtualConsultation[]   // NEW: Objective 1
-  feedbacks               Feedback[]              // NEW: Objective 5
-  waitlistEntries         Waitlist[]              // NEW: Queue management
-  notificationPreferences NotificationPreference[] // NEW: Objective 4
-  
-  @@index([studentId])
-  @@index([userId])
-  @@index([email])
-  @@index([studentStatus])
-  @@map("patients")
-}
-
 enum Gender {
   MALE
   FEMALE
   OTHER
 }
 
-enum BloodGroup {
-  A_POSITIVE
-  A_NEGATIVE
-  B_POSITIVE
-  B_NEGATIVE
-  AB_POSITIVE
-  AB_NEGATIVE
-  O_POSITIVE
-  O_NEGATIVE
-}
-
-enum StudentStatus {
-  ACTIVE
-  INACTIVE
-  GRADUATED
-  ON_LEAVE
-}
-
-// ==========================================
-// STAFF INFORMATION
-// ==========================================
-
-model Staff {
-  id              String       @id @default(uuid())
-  userId          String       @unique
-  staffId         String       @unique
-  firstName       String
-  lastName        String
-  phone           String
-  email           String?      // Staff contact email
-  department      Department
-  position        StaffPosition
-  qualifications  String[]
-  specialization  String?
-  licenseNumber   String?
-  isActive        Boolean        @default(true)
-  
-  // Profile enhancements
-  profilePicture  String?      // Avatar URL
-  bio             String?      // Short bio for patient portal
-  
-  // Availability for virtual consultations (Objective 1)
-  isAvailableForVirtual Boolean @default(true)
-  virtualConsultationRate Float? // Optional rate per session
-  
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  deletedAt       DateTime?    // Soft delete
-  
-  // Relationships
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  appointments          Appointment[]
-  consultations         Consultation[]
-  prescriptions         Prescription[]
-  virtualConsultations  VirtualConsultation[] // NEW: Objective 1
-  reviewedAssessments   HealthAssessment[]    // NEW: Staff review of ML assessments
-  feedbacks             Feedback[]            // NEW: Objective 5
-  appointmentSlots      AppointmentSlot[]     // NEW: Objective 3
-  
-  @@index([staffId])
-  @@index([department])
-  @@index([isAvailableForVirtual])
-  @@map("staff")
-}
-
 enum Department {
   GENERAL_MEDICINE
-  CARDIOLOGY
-  DERMATOLOGY
-  ORTHOPEDICS
-  GYNECOLOGY
+  EMERGENCY
   PEDIATRICS
   MENTAL_HEALTH
-  EMERGENCY
-  ADMINISTRATION
+  DENTAL
+  PHARMACY
+  LABORATORY
 }
 
 enum StaffPosition {
-  SENIOR_DOCTOR
-  JUNIOR_DOCTOR
-  CONSULTANT
+  DOCTOR
   NURSE
+  PHARMACIST
+  LAB_TECHNICIAN
   ADMINISTRATOR
   RECEPTIONIST
 }
 
-// ==========================================
-// HEALTH ASSESSMENTS (ML MODEL INTEGRATION)
-// Objective 2: ML-based triage model
-// ==========================================
-
-model HealthAssessment {
-  id                String       @id @default(uuid())
-  patientId         String
-  
-  // Input Data
-  symptoms          String[]     // Array of symptom strings
-  additionalInfo    Json?        // Age, gender, duration, severity, notes
-  
-  // ML Prediction Results
-  predictedDisease  String
-  severityScore     Int          // 1-10 scale
-  confidence        Float?       // Model confidence score (0-1)
-  
-  // UPDATED: Triage Classification (Objective 2)
-  // Maps to: Urgent/Medium/Advice as per project requirements
-  triageCategory    TriageCategory @default(MEDIUM)
-  urgency           UrgencyLevel   // Legacy field, maps to triageCategory
-  
-  recommendations   String[]     // Workout/lifestyle recommendations
-  
-  // Staff Review (for ML model validation)
-  reviewedById      String?
-  reviewedAt        DateTime?
-  reviewNotes       String?
-  triageOverride    TriageCategory? // If staff overrides ML decision
-  
-  assessmentDate    DateTime     @default(now())
-  createdAt         DateTime     @default(now())
-  
-  // Relationships
-  patient           Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  reviewedBy        Staff?       @relation(fields: [reviewedById], references: [id])
-  appointments      Appointment[] // Can trigger appointment creation
-  
-  @@index([patientId])
-  @@index([assessmentDate])
-  @@index([triageCategory])
-  @@index([urgency])
-  @@map("health_assessments")
-}
-
-// NEW ENUM: ML Triage Categories (Objective 2)
-enum TriageCategory {
-  URGENT    // Immediate attention required
-  MEDIUM    // Schedule within 24-48 hours
-  ADVICE    // Self-care recommendations, optional follow-up
-}
-
-enum UrgencyLevel {
-  LOW
-  MODERATE
-  URGENT
-}
-
-// ==========================================
-// APPOINTMENT SLOTS (Objective 3: Automated scheduling)
-// ==========================================
-
-model AppointmentSlot {
-  id          String      @id @default(uuid())
-  staffId     String
-  date        DateTime    @db.Date
-  startTime   String      // HH:MM format
-  endTime     String      // HH:MM format
-  duration    Int         @default(30) // minutes
-  
-  status      SlotStatus  @default(AVAILABLE)
-  isVirtual   Boolean     @default(false) // Virtual consultation slot
-  
-  // Priority-based booking rules (Objective 3)
-  minPriority Priority    @default(LOW) // Minimum priority to book
-  reservedFor Department? // Reserved for specific department
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  // Relationships
-  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  appointment Appointment?
-  
-  @@unique([staffId, date, startTime])
-  @@index([date])
-  @@index([status])
-  @@index([staffId, date])
-  @@map("appointment_slots")
-}
-
-enum SlotStatus {
-  AVAILABLE
-  BOOKED
-  BLOCKED    // Staff unavailable
-  RESERVED   // Reserved for urgent cases
-}
-
-// ==========================================
-// APPOINTMENTS
-// ==========================================
-
-model Appointment {
-  id                    String             @id @default(uuid())
-  patientId             String
-  staffId               String?
-  healthAssessmentId    String?            // Link to assessment if created from one
-  appointmentSlotId     String?   @unique  // Link to slot (Objective 3)
-  
-  appointmentDate       DateTime
-  appointmentTime       String
-  duration              Int                @default(30) // minutes
-  
-  department            Department
-  appointmentType       AppointmentType
-  consultationType      ConsultationType   @default(IN_PERSON) // NEW: Objective 1
-  status                AppointmentStatus  @default(SCHEDULED)
-  priority              Priority           @default(NORMAL)
-  
-  // Auto-assigned based on triage (Objective 3)
-  triagePriority        TriageCategory?    // From health assessment
-  
-  chiefComplaint        String
-  symptoms              String[]
-  notes                 String?
-  
-  // Queue Management
-  queueNumber           Int?
-  estimatedWaitTime     Int?               // minutes
-  checkedInAt           DateTime?
-  startedAt             DateTime?
-  completedAt           DateTime?
-  
-  // Reminder tracking (Objective 4: SMS/email reminders)
-  reminderSent          Boolean            @default(false)
-  reminderSentAt        DateTime?
-  followUpReminderSent  Boolean            @default(false)
-  
-  // Cancellation tracking
-  cancelledAt           DateTime?
-  cancellationReason    String?
-  
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  
-  // Relationships
-  patient               Patient            @relation(fields: [patientId], references: [id])
-  staff                 Staff?             @relation(fields: [staffId], references: [id])
-  healthAssessment      HealthAssessment?  @relation(fields: [healthAssessmentId], references: [id])
-  appointmentSlot       AppointmentSlot?   @relation(fields: [appointmentSlotId], references: [id])
-  consultation          Consultation?
-  virtualConsultation   VirtualConsultation? // NEW: Objective 1
-  feedback              Feedback?          // NEW: Objective 5
-  
-  @@index([patientId])
-  @@index([staffId])
-  @@index([appointmentDate])
-  @@index([status])
-  @@index([priority])
-  @@index([triagePriority])
-  @@index([consultationType])
-  @@map("appointments")
-}
-
 enum AppointmentType {
-  CONSULTATION
+  WALK_IN
+  SCHEDULED
   FOLLOW_UP
-  CHECK_UP
   EMERGENCY
-  VACCINATION
-  VIRTUAL     // NEW: Virtual consultation type
+  ROUTINE_CHECKUP
 }
 
 enum AppointmentStatus {
   SCHEDULED
   CHECKED_IN
-  WAITING
   IN_PROGRESS
   COMPLETED
   CANCELLED
   NO_SHOW
 }
 
-enum Priority {
+enum PriorityLevel {
   LOW
   NORMAL
   HIGH
   URGENT
 }
 
-// NEW ENUM: Consultation Type (Objective 1)
-enum ConsultationType {
-  IN_PERSON
-  VIRTUAL
-}
-
-// ==========================================
-// VIRTUAL CONSULTATIONS (Objective 1)
-// ==========================================
-
-model VirtualConsultation {
-  id                String                @id @default(uuid())
-  appointmentId     String                @unique
-  patientId         String
-  staffId           String
-  
-  // Video/Call Session
-  sessionUrl        String?               // Video call URL (e.g., Jitsi, Zoom)
-  sessionId         String?               // External session ID
-  platform          String                @default("jitsi") // jitsi, zoom, teams
-  
-  // Session Status
-  status            VirtualSessionStatus  @default(SCHEDULED)
-  scheduledStart    DateTime
-  scheduledEnd      DateTime
-  actualStart       DateTime?
-  actualEnd         DateTime?
-  duration          Int?                  // Actual duration in minutes
-  
-  // Technical Details
-  patientJoinedAt   DateTime?
-  staffJoinedAt     DateTime?
-  connectionQuality String?               // good, fair, poor
-  technicalIssues   String?
-  
-  // Session Notes
-  sessionNotes      String?
-  recordingUrl      String?               // If recorded (with consent)
-  
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  
-  // Relationships
-  appointment       Appointment           @relation(fields: [appointmentId], references: [id])
-  patient           Patient               @relation(fields: [patientId], references: [id])
-  staff             Staff                 @relation(fields: [staffId], references: [id])
-  
-  @@index([patientId])
-  @@index([staffId])
-  @@index([scheduledStart])
-  @@index([status])
-  @@map("virtual_consultations")
-}
-
-enum VirtualSessionStatus {
-  SCHEDULED
-  WAITING_ROOM      // Patient waiting
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  TECHNICAL_FAILURE
-  NO_SHOW
-}
-
-// ==========================================
-// CONSULTATIONS
-// ==========================================
-
-model Consultation {
-  id                    String    @id @default(uuid())
-  appointmentId         String    @unique
-  patientId             String
-  staffId               String
-  
-  // Examination
-  chiefComplaint        String
-  historyOfPresentIllness String?
-  physicalExamination   Json?     // Structured examination findings
-  
-  // Diagnosis
-  primaryDiagnosis      String?
-  differentialDiagnosis String[]
-  icdCode               String?   // ICD-10/11 code
-  clinicalAssessment    String?
-  
-  // Treatment
-  treatmentPlan         String?
-  followUpInstructions  String?
-  followUpDate          DateTime? // Recommended follow-up
-  
-  consultationDate      DateTime  @default(now())
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  
-  // Relationships
-  appointment           Appointment @relation(fields: [appointmentId], references: [id])
-  patient               Patient     @relation(fields: [patientId], references: [id])
-  staff                 Staff       @relation(fields: [staffId], references: [id])
-  prescriptions         Prescription[]
-  vitalSigns            VitalSign[]
-  
-  @@index([patientId])
-  @@index([staffId])
-  @@index([consultationDate])
-  @@index([primaryDiagnosis])
-  @@map("consultations")
-}
-
-// ==========================================
-// VITAL SIGNS
-// ==========================================
-
-model VitalSign {
-  id                String        @id @default(uuid())
-  patientId         String
-  consultationId    String?
-  
-  bloodPressureSystolic   Int?
-  bloodPressureDiastolic  Int?
-  heartRate         Int?          // bpm
-  temperature       Float?        // Celsius
-  weight            Float?        // kg
-  height            Float?        // cm
-  oxygenSaturation  Int?          // percentage
-  respiratoryRate   Int?          // breaths per minute
-  bmi               Float?        // calculated
-  bloodGlucose      Float?        // mg/dL - NEW
-  painLevel         Int?          // 1-10 scale - NEW
-  
-  recordedAt        DateTime      @default(now())
-  recordedBy        String?       // Staff ID or system
-  notes             String?
-  
-  // Relationships
-  patient           Patient       @relation(fields: [patientId], references: [id])
-  consultation      Consultation? @relation(fields: [consultationId], references: [id])
-  
-  @@index([patientId])
-  @@index([recordedAt])
-  @@map("vital_signs")
-}
-
-// ==========================================
-// PRESCRIPTIONS
-// ==========================================
-
-model Prescription {
-  id                String       @id @default(uuid())
-  patientId         String
-  staffId           String
-  consultationId    String?
-  
-  medicationName    String
-  genericName       String?      // Generic drug name
-  dosage            String
-  frequency         String
-  duration          String
-  route             String       @default("oral") // oral, topical, injection, etc.
-  instructions      String?
-  
-  // Quantity tracking
-  quantity          Int?         // Total quantity prescribed
-  refillsAllowed    Int          @default(0)
-  refillsRemaining  Int          @default(0)
-  
-  // Safety
-  isControlled      Boolean      @default(false)
-  warnings          String[]
-  
-  startDate         DateTime     @default(now())
-  endDate           DateTime?
-  status            PrescriptionStatus @default(ACTIVE)
-  
-  // Audit
-  prescribedBy      String       // Staff who prescribed
-  verifiedBy        String?      // Pharmacist verification
-  
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  
-  // Relationships
-  patient           Patient      @relation(fields: [patientId], references: [id])
-  staff             Staff        @relation(fields: [staffId], references: [id])
-  consultation      Consultation? @relation(fields: [consultationId], references: [id])
-  
-  @@index([patientId])
-  @@index([status])
-  @@index([medicationName])
-  @@map("prescriptions")
-}
-
 enum PrescriptionStatus {
   ACTIVE
+  DISPENSED
   COMPLETED
-  DISCONTINUED
+  CANCELLED
   EXPIRED
-  PENDING_REFILL
-}
-
-// ==========================================
-// MEDICAL RECORDS
-// ==========================================
-
-model MedicalRecord {
-  id                String       @id @default(uuid())
-  patientId         String
-  
-  recordType        RecordType
-  title             String
-  description       String?
-  fileUrl           String?      // S3 or file storage URL
-  fileName          String?
-  fileSize          Int?         // bytes
-  mimeType          String?
-  metadata          Json?
-  
-  // Data retention
-  isArchived        Boolean      @default(false)
-  archivedAt        DateTime?
-  retentionYears    Int          @default(10) // Legal requirements
-  
-  recordDate        DateTime
-  createdAt         DateTime     @default(now())
-  createdBy         String?      // Staff ID
-  
-  // Relationships
-  patient           Patient      @relation(fields: [patientId], references: [id])
-  
-  @@index([patientId])
-  @@index([recordType])
-  @@index([recordDate])
-  @@index([isArchived])
-  @@map("medical_records")
-}
-
-enum RecordType {
-  LAB_RESULT
-  IMAGING
-  VACCINATION
-  SURGERY
-  DISCHARGE_SUMMARY
-  REFERRAL
-  CONSENT_FORM
-  OTHER
-}
-
-// ==========================================
-// NOTIFICATIONS (Objective 4: SMS/email reminders)
-// ==========================================
-
-model Notification {
-  id                String           @id @default(uuid())
-  patientId         String
-  
-  type              NotificationType
-  title             String
-  message           String
-  priority          Priority         @default(NORMAL)
-  
-  // Multi-channel support (Objective 4)
-  channel           NotificationChannel @default(IN_APP)
-  
-  // Delivery tracking
-  read              Boolean          @default(false)
-  readAt            DateTime?
-  sentAt            DateTime?
-  deliveredAt       DateTime?
-  
-  // Scheduling (Objective 4: Automated reminders)
-  scheduledFor      DateTime?        // When to send
-  
-  // Retry logic
-  retryCount        Int              @default(0)
-  maxRetries        Int              @default(3)
-  lastError         String?
-  
-  // External references
-  externalId        String?          // Twilio message ID, etc.
-  relatedEntityType String?          // appointment, prescription, etc.
-  relatedEntityId   String?
-  
-  createdAt         DateTime         @default(now())
-  
-  // Relationships
-  patient           Patient          @relation(fields: [patientId], references: [id])
-  
-  @@index([patientId])
-  @@index([read])
-  @@index([createdAt])
-  @@index([channel])
-  @@index([scheduledFor])
-  @@map("notifications")
 }
 
 enum NotificationType {
   APPOINTMENT_REMINDER
-  APPOINTMENT_CONFIRMATION
-  APPOINTMENT_CANCELLED
-  LAB_RESULTS_READY
+  PRESCRIPTION_READY
   MEDICATION_REMINDER
-  URGENT_HEALTH_ALERT
   SYSTEM_ANNOUNCEMENT
-  FOLLOW_UP_REQUIRED
-  VIRTUAL_CONSULTATION_LINK  // NEW: Objective 1
-  TRIAGE_RESULT              // NEW: Objective 2
-  FEEDBACK_REQUEST           // NEW: Objective 5
-}
-
-// NEW ENUM: Notification Channels (Objective 4)
-enum NotificationChannel {
-  EMAIL
-  SMS
-  PUSH
-  IN_APP
-}
-
-// NEW MODEL: Notification Preferences (Objective 4)
-model NotificationPreference {
-  id                String              @id @default(uuid())
-  patientId         String
-  
-  notificationType  NotificationType
-  channel           NotificationChannel
-  enabled           Boolean             @default(true)
-  
-  // Quiet hours
-  quietHoursStart   String?             // HH:MM format
-  quietHoursEnd     String?             // HH:MM format
-  
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  
-  // Relationships
-  patient           Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  
-  @@unique([patientId, notificationType, channel])
-  @@index([patientId])
-  @@map("notification_preferences")
-}
-
-// ==========================================
-// FEEDBACK & RATINGS (Objective 5)
-// ==========================================
-
-model Feedback {
-  id              String           @id @default(uuid())
-  patientId       String
-  appointmentId   String?          @unique
-  staffId         String?
-  
-  // Rating
-  rating          Int              // 1-5 stars
-  category        FeedbackCategory
-  
-  // Feedback content
-  comments        String?
-  isAnonymous     Boolean          @default(false)
-  
-  // Sentiment analysis (for trend analysis)
-  sentimentScore  Float?           // -1 to 1 (negative to positive)
-  keywords        String[]         // Extracted keywords for trends
-  
-  // Response tracking
-  respondedAt     DateTime?
-  responseBy      String?
-  responseText    String?
-  
-  // Visibility
-  isPublic        Boolean          @default(false) // Show on staff profile
-  isFlagged       Boolean          @default(false) // Needs attention
-  
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  
-  // Relationships
-  patient         Patient          @relation(fields: [patientId], references: [id])
-  appointment     Appointment?     @relation(fields: [appointmentId], references: [id])
-  staff           Staff?           @relation(fields: [staffId], references: [id])
-  
-  @@index([staffId])
-  @@index([rating])
-  @@index([category])
-  @@index([createdAt])
-  @@index([isFlagged])
-  @@map("feedbacks")
-}
-
-enum FeedbackCategory {
-  SERVICE
-  STAFF
-  FACILITY
-  APPOINTMENT
-  VIRTUAL_CONSULTATION  // NEW: Objective 1
-  TRIAGE_ACCURACY       // NEW: Objective 2
-  WAIT_TIME
-  COMMUNICATION
-  OTHER
-}
-
-// ==========================================
-// WAITLIST (Queue Management)
-// ==========================================
-
-model Waitlist {
-  id            String         @id @default(uuid())
-  patientId     String
-  department    Department
-  reason        String
-  priority      Priority       @default(NORMAL)
-  
-  // Triage integration (Objective 2 & 3)
-  triageCategory TriageCategory?
-  
-  status        WaitlistStatus @default(WAITING)
-  position      Int?           // Queue position
-  
-  // Timing
-  addedAt       DateTime       @default(now())
-  calledAt      DateTime?
-  estimatedWait Int?           // minutes
-  
-  // Conversion
-  convertedToAppointmentId String?
-  
-  // Relationships
-  patient       Patient        @relation(fields: [patientId], references: [id])
-  
-  @@index([department, status, priority])
-  @@index([triageCategory])
-  @@index([addedAt])
-  @@map("waitlists")
-}
-
-enum WaitlistStatus {
-  WAITING
-  CALLED
-  CANCELLED
-  CONVERTED_TO_APPOINTMENT
-  NO_SHOW
-}
-
-// ==========================================
-// SYSTEM SETTINGS & ANALYTICS
-// ==========================================
-
-model SystemSettings {
-  id                String    @id @default(uuid())
-  key               String    @unique
-  value             Json
-  description       String?
-  category          String?   // notification, scheduling, ml, etc.
-  
-  updatedAt         DateTime  @updatedAt
-  updatedBy         String?
-  
-  @@index([category])
-  @@map("system_settings")
-}
-
-model AuditLog {
-  id                String    @id @default(uuid())
-  userId            String?
-  action            String    // CREATE, UPDATE, DELETE, LOGIN, etc.
-  entity            String    // User, Patient, Appointment, etc.
-  entityId          String?
-  changes           Json?     // Before/after values
-  ipAddress         String?
-  userAgent         String?
-  
-  // Additional context
-  severity          String    @default("INFO") // INFO, WARNING, ERROR, CRITICAL
-  description       String?
-  
-  createdAt         DateTime  @default(now())
-  
-  @@index([userId])
-  @@index([createdAt])
-  @@index([entity])
-  @@index([action])
-  @@index([severity])
-  @@map("audit_logs")
-}
-
-// ==========================================
-// ML MODEL ANALYTICS (Objective 2: Trend analysis)
-// ==========================================
-
-model MLPredictionLog {
-  id                String    @id @default(uuid())
-  healthAssessmentId String?
-  
-  // Input
-  symptoms          String[]
-  inputFeatures     Json?
-  
-  // Output
-  predictedDisease  String
-  triageCategory    TriageCategory
-  confidence        Float
-  modelVersion      String
-  
-  // Performance tracking
-  responseTimeMs    Int?
-  
-  // Outcome tracking (for model improvement)
-  actualDiagnosis   String?
-  wasCorrect        Boolean?
-  feedbackProvided  Boolean   @default(false)
-  
-  createdAt         DateTime  @default(now())
-  
-  @@index([createdAt])
-  @@index([triageCategory])
-  @@index([predictedDisease])
-  @@index([wasCorrect])
-  @@map("ml_prediction_logs")
 }

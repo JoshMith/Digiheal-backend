@@ -1,230 +1,85 @@
-import axios, { AxiosInstance } from 'axios';
-import { config } from '../config/env';
+import axios from 'axios';
 import logger from '../utils/logger';
-import { UrgencyLevel, Priority } from '@prisma/client';
-import prisma from '../config/database';
-import { cacheService } from '../config/redis';
-import dotenv from 'dotenv';
-dotenv.config();
 
-interface MLPredictionRequest {
-  symptoms: string[];
-  age?: number | undefined;
-  gender?: string | undefined;
-  duration?: string | undefined;
-  severity?: string | undefined;
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
+
+export interface PredictionRequest {
+  department: string;
+  priority: string;
+  appointmentType: string;
+  symptomCount: number;
+  timeOfDay?: number;
+  dayOfWeek?: number;
 }
 
-interface MLPredictionResponse {
-  disease: string;
-  severity_score: number;
-  urgency: 'LOW' | 'MODERATE' | 'URGENT';
-  recommendations: string[];
-  confidence?: number;
+export interface PredictionResponse {
+  predictedDuration: number;
+  confidence: number;
+  modelVersion: string;
 }
 
-export class MLService {
-  private client: AxiosInstance;
-  private cacheEnabled: boolean;
-  private cacheTTL: number = 3600; // 1 hour
+export const predictDuration = async (data: PredictionRequest): Promise<PredictionResponse> => {
+  try {
+    // Add current time if not provided
+    const now = new Date();
+    const requestData = {
+      ...data,
+      timeOfDay: data.timeOfDay || now.getHours(),
+      dayOfWeek: data.dayOfWeek || now.getDay()
+    };
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: process.env.ML_SERVICE_URL || 'http://localhost:5000',
-      timeout: parseInt(process.env.ML_SERVICE_TIMEOUT || '30000', 10),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    this.cacheEnabled = config.redis?.enabled || false;
-
-    // Request interceptor for logging
-    this.client.interceptors.request.use(
-      (config) => {
-        logger.debug(`ML API Request: ${config.method?.toUpperCase()} ${config.url}`);
-        return config;
-      },
-      (error) => {
-        logger.error('ML API Request Error:', error);
-        return Promise.reject(error);
-      }
-    );
-
-    // Response interceptor for logging
-    this.client.interceptors.response.use(
-      (response) => {
-        logger.debug(`ML API Response: ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error) => {
-        logger.error('ML API Response Error:', error.message);
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  /**
-   * Get disease prediction from ML model
-   */
-  async predictDisease(
-    data: MLPredictionRequest
-  ): Promise<MLPredictionResponse> {
+    // Try ML service, fallback to heuristic
     try {
-      // Check cache first
-      const cacheKey = `ml:prediction:${JSON.stringify(data)}`;
-      if (this.cacheEnabled) {
-        const cached = await cacheService.get<MLPredictionResponse>(cacheKey);
-        if (cached) {
-          logger.info('ML prediction retrieved from cache');
-          return cached;
-        }
-      }
-
-      // Make prediction request
-      const response = await this.client.post<MLPredictionResponse>(
-        '/predict',
-        data
-      );
-
-      // Cache the result
-      if (this.cacheEnabled && response.data) {
-        await cacheService.set(cacheKey, response.data, this.cacheTTL);
-      }
-
-      return response.data;
-    } catch (error: any) {
-      if (error.code === 'ECONNREFUSED') {
-        throw new Error('ML service is not available. Please try again later.');
-      }
-      if (error.response) {
-        throw new Error(
-          `ML service error: ${error.response.data?.message || error.response.statusText}`
-        );
-      }
-      throw new Error('Failed to get prediction from ML service');
-    }
-  }
-
-  /**
-   * Create health assessment with ML prediction
-   */
-  async createHealthAssessment(
-    patientId: string,
-    symptoms: string[],
-    additionalInfo?: {
-      age?: number;
-      gender?: string;
-      duration?: string;
-      severity?: string;
-      notes?: string;
-    }
-  ) {
-    try {
-      // Get ML prediction
-      const prediction = await this.predictDisease({
-        symptoms,
-        age: additionalInfo?.age,
-        gender: additionalInfo?.gender,
-        duration: additionalInfo?.duration,
-        severity: additionalInfo?.severity,
-      });
-
-      // Create health assessment record
-      const assessment = await prisma.healthAssessment.create({
-        data: {
-          patientId,
-          symptoms,
-          additionalInfo: additionalInfo || {},
-          predictedDisease: prediction.disease,
-          severityScore: prediction.severity_score,
-          urgency: prediction.urgency as UrgencyLevel,
-          recommendations: prediction.recommendations,
-          confidence: prediction.confidence ?? null,
-        },
-        include: {
-          patient: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              studentId: true,
-            },
-          },
-        },
-      });
-
-      // Create urgent notification if needed
-      if (prediction.urgency === 'URGENT') {
-        await prisma.notification.create({
-          data: {
-            patientId,
-            type: 'URGENT_HEALTH_ALERT',
-            title: 'Urgent Health Assessment',
-            message: `Your health assessment indicates ${prediction.disease}. Please seek immediate medical attention.`,
-            priority: Priority.URGENT,
-          },
-        });
-
-        logger.warn(`Urgent health assessment created for patient ${patientId}`);
-      }
-
-      logger.info(`Health assessment created: ${assessment.id} for patient ${patientId}`);
-
-      return assessment;
-    } catch (error: any) {
-      logger.error('Error creating health assessment:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get model health status
-   */
-  async checkHealth(): Promise<{ status: string; message: string }> {
-    try {
-      const response = await this.client.get('/health');
-      return {
-        status: 'healthy',
-        message: 'ML service is operational',
-      };
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        message: 'ML service is not responding',
-      };
-    }
-  }
-
-  /**
-   * Get model metadata/info
-   */
-  async getModelInfo(): Promise<any> {
-    try {
-      const response = await this.client.get('/info');
+      const response = await axios.post(`${ML_SERVICE_URL}/predict`, requestData);
       return response.data;
     } catch (error) {
-      logger.error('Error getting model info:', error);
-      throw new Error('Failed to retrieve model information');
+      logger.warn('ML service unavailable, using heuristic fallback');
+      return getHeuristicPrediction(requestData);
     }
+  } catch (error) {
+    logger.error('Prediction error:', error);
+    return getHeuristicPrediction(data);
   }
+};
 
-  /**
-   * Batch predictions (if needed for analytics)
-   */
-  async batchPredict(
-    requests: MLPredictionRequest[]
-  ): Promise<MLPredictionResponse[]> {
-    try {
-      const predictions = await Promise.all(
-        requests.map((req) => this.predictDisease(req))
-      );
-      return predictions;
-    } catch (error) {
-      logger.error('Error in batch prediction:', error);
-      throw error;
-    }
+// Simple heuristic fallback
+const getHeuristicPrediction = (data: PredictionRequest): PredictionResponse => {
+  let baseTime = 15; // minutes
+  
+  // Department adjustments
+  if (data.department.includes('EMERGENCY')) baseTime = 25;
+  if (data.department.includes('MENTAL')) baseTime = 45;
+  
+  // Priority multipliers
+  const priorityMultiplier = {
+    'LOW': 0.7,
+    'NORMAL': 1,
+    'HIGH': 1.5,
+    'URGENT': 2
+  };
+  
+  const multiplier = priorityMultiplier[data.priority as keyof typeof priorityMultiplier] || 1;
+  
+  // Symptom complexity
+  const symptomTime = data.symptomCount * 3;
+  
+  const predicted = Math.round(baseTime * multiplier + symptomTime);
+  
+  return {
+    predictedDuration: predicted,
+    confidence: 0.5, // Low confidence for heuristic
+    modelVersion: 'v0.1-heuristic'
+  };
+};
+
+// Export training data to ML service
+export const exportTrainingData = async (data: any[]) => {
+  try {
+    await axios.post(`${ML_SERVICE_URL}/train`, { data });
+    logger.info('Training data exported to ML service');
+    return true;
+  } catch (error) {
+    logger.error('Failed to export training data:', error);
+    return false;
   }
-}
-
-export default new MLService();
+};

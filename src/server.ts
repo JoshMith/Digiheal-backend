@@ -6,7 +6,6 @@ import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import { config } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
-import { connectRedis, disconnectRedis } from './config/redis';
 import { swaggerSpec } from './config/swagger';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';

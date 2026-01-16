@@ -12,27 +12,11 @@ const createPatientSchema = z.object({
   dateOfBirth: z.string().transform((val) => new Date(val)),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
   phone: z.string().min(10, 'Valid phone number required'),
-  bloodGroup: z.enum([
-    'A_POSITIVE',
-    'A_NEGATIVE',
-    'B_POSITIVE',
-    'B_NEGATIVE',
-    'AB_POSITIVE',
-    'AB_NEGATIVE',
-    'O_POSITIVE',
-    'O_NEGATIVE',
-  ]).optional(),
+  bloodGroup: z.string().optional(),
   allergies: z.array(z.string()).default([]),
   chronicConditions: z.array(z.string()).default([]),
-  currentMedications: z.array(z.string()).default([]),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactEmail: z.string().optional(),
-  insuranceProvider: z.string().optional(),
-  policyNumber: z.string().optional(),
-  nationality: z.string().optional(),
-  address: z.string().optional(),
 });
 
 const updatePatientSchema = createPatientSchema.partial();
@@ -76,15 +60,8 @@ export class PatientController {
         bloodGroup: validatedData.bloodGroup ?? null,
         allergies: validatedData.allergies,
         chronicConditions: validatedData.chronicConditions,
-        currentMedications: validatedData.currentMedications,
         emergencyContactName: validatedData.emergencyContactName ?? null,
         emergencyContactPhone: validatedData.emergencyContactPhone ?? null,
-        emergencyContactRelationship: validatedData.emergencyContactRelationship ?? null,
-        emergencyContactEmail: validatedData.emergencyContactEmail ?? null,
-        insuranceProvider: validatedData.insuranceProvider ?? null,
-        policyNumber: validatedData.policyNumber ?? null,
-        nationality: validatedData.nationality ?? null,
-        address: validatedData.address ?? null,
       },
       include: {
         user: {
@@ -124,10 +101,6 @@ export class PatientController {
             isActive: true,
           },
         },
-        healthAssessments: {
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        },
         appointments: {
           orderBy: { appointmentDate: 'desc' },
           take: 5,
@@ -140,6 +113,22 @@ export class PatientController {
               },
             },
           },
+        },
+        prescriptions: {
+          orderBy: { prescribedAt: 'desc' },
+          take: 5,
+          include: {
+            staff: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        vitalSigns: {
+          orderBy: { recordedAt: 'desc' },
+          take: 5,
         },
       },
     });
@@ -218,15 +207,8 @@ export class PatientController {
     if (validatedData.bloodGroup !== undefined) updateData.bloodGroup = validatedData.bloodGroup ?? null;
     if (validatedData.allergies !== undefined) updateData.allergies = validatedData.allergies;
     if (validatedData.chronicConditions !== undefined) updateData.chronicConditions = validatedData.chronicConditions;
-    if (validatedData.currentMedications !== undefined) updateData.currentMedications = validatedData.currentMedications;
     if (validatedData.emergencyContactName !== undefined) updateData.emergencyContactName = validatedData.emergencyContactName ?? null;
     if (validatedData.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = validatedData.emergencyContactPhone ?? null;
-    if (validatedData.emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = validatedData.emergencyContactRelationship ?? null;
-    if (validatedData.emergencyContactEmail !== undefined) updateData.emergencyContactEmail = validatedData.emergencyContactEmail ?? null;
-    if (validatedData.insuranceProvider !== undefined) updateData.insuranceProvider = validatedData.insuranceProvider ?? null;
-    if (validatedData.policyNumber !== undefined) updateData.policyNumber = validatedData.policyNumber ?? null;
-    if (validatedData.nationality !== undefined) updateData.nationality = validatedData.nationality ?? null;
-    if (validatedData.address !== undefined) updateData.address = validatedData.address ?? null;
 
     const updatedPatient = await prisma.patient.update({
       where: { id },
@@ -254,46 +236,53 @@ export class PatientController {
     });
   });
 
-  // Get patient's medical history
+  // Get patient's medical history (using appointments instead of consultations)
   static getPatientMedicalHistory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '10');
     const skip = (page - 1) * limit;
 
-    const [consultations, total] = await Promise.all([
-      prisma.consultation.findMany({
-        where: { patientId: id },
+    const [appointments, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where: { 
+          patientId: id,
+          status: 'COMPLETED'
+        },
         include: {
-          appointment: {
-            select: {
-              appointmentDate: true,
-              appointmentTime: true,
-              department: true,
-            },
-          },
           staff: {
             select: {
               firstName: true,
               lastName: true,
-              specialization: true,
+              department: true,
             },
           },
-          prescriptions: true,
-          vitalSigns: true,
+          prescriptions: {
+            include: {
+              staff: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { appointmentDate: 'desc' },
         skip,
         take: limit,
       }),
-      prisma.consultation.count({
-        where: { patientId: id },
+      prisma.appointment.count({
+        where: { 
+          patientId: id,
+          status: 'COMPLETED'
+        },
       }),
     ]);
 
     res.status(200).json({
       success: true,
-      data: consultations,
+      data: appointments,
       meta: {
         page,
         limit,
@@ -334,7 +323,7 @@ export class PatientController {
           _count: {
             select: {
               appointments: true,
-              healthAssessments: true,
+              prescriptions: true,
             },
           },
         },
@@ -365,7 +354,6 @@ export class PatientController {
       totalAppointments,
       completedAppointments,
       upcomingAppointments,
-      healthAssessments,
       prescriptions,
     ] = await Promise.all([
       prisma.appointment.count({
@@ -377,12 +365,9 @@ export class PatientController {
       prisma.appointment.count({
         where: {
           patientId: id,
-          status: { in: ['SCHEDULED', 'CHECKED_IN', 'WAITING'] },
+          status: { in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'] },
           appointmentDate: { gte: new Date() },
         },
-      }),
-      prisma.healthAssessment.count({
-        where: { patientId: id },
       }),
       prisma.prescription.count({
         where: { patientId: id, status: 'ACTIVE' },
@@ -395,9 +380,88 @@ export class PatientController {
         totalAppointments,
         completedAppointments,
         upcomingAppointments,
-        healthAssessments,
         activePrescriptions: prescriptions,
       },
+    });
+  });
+
+  // Get patient vital signs
+  static getPatientVitalSigns = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const page = parseInt((req.query.page as string) || '1');
+    const limit = parseInt((req.query.limit as string) || '20');
+    const skip = (page - 1) * limit;
+
+    const [vitalSigns, total] = await Promise.all([
+      prisma.vitalSigns.findMany({
+        where: { patientId: id },
+        orderBy: { recordedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.vitalSigns.count({
+        where: { patientId: id },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: vitalSigns,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  });
+
+  // Add vital signs for a patient
+  static addVitalSigns = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const {
+      bloodPressureSystolic,
+      bloodPressureDiastolic,
+      heartRate,
+      temperature,
+      weight,
+      height,
+      oxygenSaturation,
+      respiratoryRate,
+    } = req.body;
+
+    const patient = await prisma.patient.findUnique({
+      where: { id },
+    });
+
+    if (!patient) {
+      res.status(404).json({
+        success: false,
+        error: 'Patient not found',
+      });
+      return;
+    }
+
+    const vitalSigns = await prisma.vitalSigns.create({
+      data: {
+        patientId: id,
+        bloodPressureSystolic,
+        bloodPressureDiastolic,
+        heartRate,
+        temperature,
+        weight,
+        height,
+        oxygenSaturation,
+        respiratoryRate,
+      },
+    });
+
+    logger.info(`Vital signs added for patient: ${id}`);
+
+    res.status(201).json({
+      success: true,
+      data: vitalSigns,
+      message: 'Vital signs recorded successfully',
     });
   });
 }

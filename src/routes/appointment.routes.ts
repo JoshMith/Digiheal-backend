@@ -1,18 +1,25 @@
 import { Router } from 'express';
 import { AppointmentController } from '../controllers/appointment.controller';
-import { authenticate, requireRole, requireStaffOrAdmin } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 
-const router: Router = Router();
+const router = Router();
 
+// Public routes
+router.get('/slots', AppointmentController.getAvailableSlots);
+
+// Protected routes
 router.use(authenticate);
 
 router.post('/', AppointmentController.createAppointment);
-router.get('/:id', AppointmentController.getAppointmentById);
 router.get('/patient/:patientId', AppointmentController.getPatientAppointments);
+router.get('/staff/:staffId', AppointmentController.getStaffAppointments);
+router.get('/today/:department', AppointmentController.getTodayAppointments);
+router.get('/stats', AppointmentController.getAppointmentStats);
+router.get('/:id', AppointmentController.getAppointmentById);
 router.put('/:id', AppointmentController.updateAppointment);
-router.post('/:id/check-in', AppointmentController.checkInAppointment);
-router.post('/:id/cancel', AppointmentController.cancelAppointment);
-router.get('/department/:department/today', requireStaffOrAdmin, AppointmentController.getTodayAppointments);
-router.get('/slots/available', AppointmentController.getAvailableSlots);
+router.put('/:id/checkin', AppointmentController.checkInAppointment);
+router.put('/:id/start', AppointmentController.startAppointment);
+router.put('/:id/complete', AppointmentController.completeAppointment);
+router.delete('/:id/cancel', AppointmentController.cancelAppointment);
 
 export default router;

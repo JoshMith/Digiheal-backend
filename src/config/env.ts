@@ -9,7 +9,7 @@ export const config = {
   // Application Configuration
   app: {
     name: process.env.APP_NAME || 'DigiHeal API',
-    url: process.env.APP_URL || 'http://localhost:3000',
+    url: process.env.APP_URL || 'http://localhost:3000' || 'https://miffiest-tom-pyramidally.ngrok-free.dev',
     version: process.env.APP_VERSION || '1.0.0'
   },
   
@@ -30,7 +30,7 @@ export const config = {
 
   // CORS Configuration
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'https://digiheal-hub.lovable.app',
     credentials: process.env.CORS_CREDENTIALS === 'true',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']

@@ -1,20 +1,20 @@
-import { Request, Response } from 'express';
-import prisma from '../config/database';
+import { Request, Response } from "express";
+import prisma from "../config/database";
 import {
   hashPassword,
   comparePassword,
   generateToken,
   generateRefreshToken,
-} from '../utils/helpers';
-import { ApiError, asyncHandler } from '../middleware/errorHandler';
-import logger from '../utils/logger';
+} from "../utils/helpers";
+import { ApiError, asyncHandler } from "../middleware/errorHandler";
+import logger from "../utils/logger";
 import {
   validate,
   loginSchema,
   patientRegistrationSchema,
   staffRegistrationSchema,
-} from '../utils/validators';
-import { UserRole } from '../types';
+} from "../utils/validators";
+import { UserRole } from "../types";
 
 export class AuthController {
   /**
@@ -32,7 +32,7 @@ export class AuthController {
       firstName: string;
       lastName: string;
       dateOfBirth: string;
-      gender: 'MALE' | 'FEMALE' | 'OTHER';
+      gender: "MALE" | "FEMALE" | "OTHER";
       phone: string;
       nationality?: string;
       address?: string;
@@ -54,7 +54,7 @@ export class AuthController {
     });
 
     if (existingUser) {
-      throw new ApiError(409, 'User with this email already exists');
+      throw new ApiError(409, "User with this email already exists");
     }
 
     // Check if student ID already exists
@@ -63,7 +63,7 @@ export class AuthController {
     });
 
     if (existingStudent) {
-      throw new ApiError(409, 'Student ID already registered');
+      throw new ApiError(409, "Student ID already registered");
     }
 
     // Hash password
@@ -75,7 +75,7 @@ export class AuthController {
         data: {
           email: data.email,
           password: hashedPassword,
-          role: 'PATIENT',
+          role: "PATIENT",
         },
       });
 
@@ -116,7 +116,7 @@ export class AuthController {
 
     res.status(201).json({
       success: true,
-      message: 'Patient registration successful',
+      message: "Patient registration successful",
       data: {
         user: {
           id: result.user.id,
@@ -162,7 +162,7 @@ export class AuthController {
     });
 
     if (existingUser) {
-      throw new ApiError(409, 'User with this email already exists');
+      throw new ApiError(409, "User with this email already exists");
     }
 
     // Check if staff ID already exists
@@ -171,7 +171,7 @@ export class AuthController {
     });
 
     if (existingStaff) {
-      throw new ApiError(409, 'Staff ID already registered');
+      throw new ApiError(409, "Staff ID already registered");
     }
 
     // Hash password
@@ -183,7 +183,7 @@ export class AuthController {
         data: {
           email: data.email,
           password: hashedPassword,
-          role: 'STAFF',
+          role: "STAFF",
           isActive: true,
         },
       });
@@ -222,7 +222,7 @@ export class AuthController {
 
     res.status(201).json({
       success: true,
-      message: 'Staff registration successful',
+      message: "Staff registration successful",
       data: {
         user: {
           id: result.user.id,
@@ -263,18 +263,21 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(401, 'Invalid email or password');
+      throw new ApiError(401, "Invalid email or password");
     }
 
     if (!user.isActive) {
-      throw new ApiError(403, 'Account is deactivated. Please contact support.');
+      throw new ApiError(
+        403,
+        "Account is deactivated. Please contact support.",
+      );
     }
 
     // Verify password
     const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
-      throw new ApiError(401, 'Invalid email or password');
+      throw new ApiError(401, "Invalid email or password");
     }
 
     // Update last login
@@ -299,11 +302,11 @@ export class AuthController {
     logger.info(`User logged in: ${user.email} (${user.role})`);
 
     // Determine profile based on role
-    const profile = user.role === 'PATIENT' ? user.patient : user.staff;
+    const profile = user.role === "PATIENT" ? user.patient : user.staff;
 
     res.json({
       success: true,
-      message: 'Login successful',
+      message: "Login successful",
       data: {
         user: {
           id: user.id,
@@ -323,7 +326,7 @@ export class AuthController {
    */
   getProfile = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, "Unauthorized");
     }
 
     const user = await prisma.user.findUnique({
@@ -335,7 +338,7 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
     // Remove sensitive data
@@ -345,7 +348,7 @@ export class AuthController {
       success: true,
       data: {
         ...safeUser,
-        profile: user.role === 'PATIENT' ? user.patient : user.staff,
+        profile: user.role === "PATIENT" ? user.patient : user.staff,
       },
     });
   });
@@ -356,7 +359,7 @@ export class AuthController {
    */
   updateProfile = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, "Unauthorized");
     }
 
     const user = await prisma.user.findUnique({
@@ -368,11 +371,11 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
     // Update based on role
-    if (user.role === 'PATIENT' && user.patient) {
+    if (user.role === "PATIENT" && user.patient) {
       const {
         firstName,
         lastName,
@@ -391,11 +394,11 @@ export class AuthController {
           ...(lastName && { lastName }),
           ...(phone && { phone }),
           ...(bloodGroup !== undefined && { bloodGroup: bloodGroup ?? null }),
-          ...(emergencyContactName !== undefined && { 
-            emergencyContactName: emergencyContactName ?? null 
+          ...(emergencyContactName !== undefined && {
+            emergencyContactName: emergencyContactName ?? null,
           }),
-          ...(emergencyContactPhone !== undefined && { 
-            emergencyContactPhone: emergencyContactPhone ?? null 
+          ...(emergencyContactPhone !== undefined && {
+            emergencyContactPhone: emergencyContactPhone ?? null,
           }),
           ...(allergies && { allergies }),
           ...(chronicConditions && { chronicConditions }),
@@ -406,10 +409,10 @@ export class AuthController {
 
       res.json({
         success: true,
-        message: 'Profile updated successfully',
+        message: "Profile updated successfully",
         data: updatedPatient,
       });
-    } else if ((user.role === 'STAFF' || user.role === 'ADMIN') && user.staff) {
+    } else if ((user.role === "STAFF" || user.role === "ADMIN") && user.staff) {
       const {
         firstName,
         lastName,
@@ -425,11 +428,11 @@ export class AuthController {
           ...(firstName && { firstName }),
           ...(lastName && { lastName }),
           ...(phone && { phone }),
-          ...(specialization !== undefined && { 
-            specialization: specialization ?? null 
+          ...(specialization !== undefined && {
+            specialization: specialization ?? null,
           }),
-          ...(licenseNumber !== undefined && { 
-            licenseNumber: licenseNumber ?? null 
+          ...(licenseNumber !== undefined && {
+            licenseNumber: licenseNumber ?? null,
           }),
           ...(isAvailable !== undefined && { isAvailable }),
         },
@@ -439,11 +442,11 @@ export class AuthController {
 
       res.json({
         success: true,
-        message: 'Profile updated successfully',
+        message: "Profile updated successfully",
         data: updatedStaff,
       });
     } else {
-      throw new ApiError(400, 'Unable to update profile');
+      throw new ApiError(400, "Unable to update profile");
     }
   });
 
@@ -453,17 +456,20 @@ export class AuthController {
    */
   changePassword = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, "Unauthorized");
     }
 
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      throw new ApiError(400, 'Current and new password are required');
+      throw new ApiError(400, "Current and new password are required");
     }
 
     if (newPassword.length < 8) {
-      throw new ApiError(400, 'New password must be at least 8 characters long');
+      throw new ApiError(
+        400,
+        "New password must be at least 8 characters long",
+      );
     }
 
     // Find user
@@ -472,17 +478,17 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
     // Verify current password
     const isPasswordValid = await comparePassword(
       currentPassword,
-      user.password
+      user.password,
     );
 
     if (!isPasswordValid) {
-      throw new ApiError(401, 'Current password is incorrect');
+      throw new ApiError(401, "Current password is incorrect");
     }
 
     // Hash new password
@@ -498,7 +504,7 @@ export class AuthController {
 
     res.json({
       success: true,
-      message: 'Password changed successfully',
+      message: "Password changed successfully",
     });
   });
 
@@ -508,7 +514,7 @@ export class AuthController {
    */
   changeUserRole = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, "Unauthorized");
     }
 
     // Check if current user is admin
@@ -516,17 +522,20 @@ export class AuthController {
       where: { id: String(req.user.userId) },
     });
 
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      throw new ApiError(403, 'Only admins can change user roles');
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      throw new ApiError(403, "Only admins can change user roles");
     }
 
     const { userId } = req.params;
     const { newRole } = req.body;
 
     // Validate role
-    const validRoles = ['PATIENT', 'STAFF', 'ADMIN'];
+    const validRoles = ["PATIENT", "STAFF", "ADMIN"];
     if (!newRole || !validRoles.includes(newRole)) {
-      throw new ApiError(400, 'Valid new role is required (PATIENT, STAFF, ADMIN)');
+      throw new ApiError(
+        400,
+        "Valid new role is required (PATIENT, STAFF, ADMIN)",
+      );
     }
 
     // Find target user
@@ -535,12 +544,12 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
     // Prevent changing own role
     if (user.id === currentUser.id) {
-      throw new ApiError(400, 'Cannot change your own role');
+      throw new ApiError(400, "Cannot change your own role");
     }
 
     // Update role
@@ -554,11 +563,13 @@ export class AuthController {
       },
     });
 
-    logger.info(`Role changed for user: ${user.email} from ${user.role} to ${newRole} by admin ${currentUser.email}`);
+    logger.info(
+      `Role changed for user: ${user.email} from ${user.role} to ${newRole} by admin ${currentUser.email}`,
+    );
 
     res.json({
       success: true,
-      message: 'User role changed successfully',
+      message: "User role changed successfully",
       data: updatedUser,
     });
   });
@@ -571,19 +582,22 @@ export class AuthController {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      throw new ApiError(400, 'Refresh token is required');
+      throw new ApiError(400, "Refresh token is required");
     }
 
     try {
-      const jwt = require('jsonwebtoken');
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+      const jwt = require("jsonwebtoken");
+      const decoded = jwt.verify(
+        refreshToken,
+        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      );
 
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
       });
 
       if (!user || !user.isActive) {
-        throw new ApiError(401, 'Invalid refresh token');
+        throw new ApiError(401, "Invalid refresh token");
       }
 
       const newToken = generateToken({
@@ -600,14 +614,14 @@ export class AuthController {
 
       res.json({
         success: true,
-        message: 'Token refreshed successfully',
+        message: "Token refreshed successfully",
         data: {
           token: newToken,
           refreshToken: newRefreshToken,
         },
       });
     } catch (error) {
-      throw new ApiError(401, 'Invalid or expired refresh token');
+      throw new ApiError(401, "Invalid or expired refresh token");
     }
   });
 
@@ -619,7 +633,7 @@ export class AuthController {
     logger.info(`User logged out: ${req.user?.email}`);
     res.json({
       success: true,
-      message: 'Logout successful',
+      message: "Logout successful",
     });
   });
 
@@ -629,13 +643,13 @@ export class AuthController {
    */
   deactivateAccount = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, "Unauthorized");
     }
 
     const { password } = req.body;
 
     if (!password) {
-      throw new ApiError(400, 'Password is required to deactivate account');
+      throw new ApiError(400, "Password is required to deactivate account");
     }
 
     const user = await prisma.user.findUnique({
@@ -643,14 +657,14 @@ export class AuthController {
     });
 
     if (!user) {
-      throw new ApiError(404, 'User not found');
+      throw new ApiError(404, "User not found");
     }
 
     // Verify password
     const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
-      throw new ApiError(401, 'Invalid password');
+      throw new ApiError(401, "Invalid password");
     }
 
     // Deactivate account
@@ -663,7 +677,7 @@ export class AuthController {
 
     res.json({
       success: true,
-      message: 'Account deactivated successfully',
+      message: "Account deactivated successfully",
     });
   });
 }

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { AppointmentController } from '../controllers/appointment.controller';
 import { authenticate } from '../middleware/auth';
 
-const router = Router();
+const router: Router = Router();
+
 
 // Public routes
 router.get('/slots', AppointmentController.getAvailableSlots);

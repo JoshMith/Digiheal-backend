@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { PrescriptionController } from '../controllers/prescription.controller';
 import { authenticate, requireStaffOrAdmin } from '../middleware/auth';
 
-const router = Router();
+const router: Router = Router();
 
 // All routes require authentication
 router.use(authenticate);

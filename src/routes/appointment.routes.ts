@@ -7,6 +7,7 @@ const router: Router = Router();
 
 // Public routes
 router.get('/slots', AppointmentController.getAvailableSlots);
+router.post('/predict', AppointmentController.predictAppointmentDuration);
 
 // Protected routes
 router.use(authenticate);

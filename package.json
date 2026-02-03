@@ -20,7 +20,7 @@
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "ml:train": "tsx scripts/generate-test-data.ts",
-    "ml:serve": "cd ml_service && python app.py"
+    "ml:serve": "python app.py"
   },
   "type": "commonjs",
   "keywords": [

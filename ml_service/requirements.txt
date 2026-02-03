@@ -1,0 +1,20 @@
+# DKUT Medical Center - ML Service Dependencies
+
+# Core Flask application
+flask==3.0.0
+flask-cors==4.0.0
+
+# Data processing
+pandas==2.1.0
+numpy==1.26.0
+
+# Machine Learning
+scikit-learn==1.3.0
+joblib==1.3.0
+
+# Database connection
+psycopg2==2.9.9
+
+# Optional: For future enhancements
+# xgboost==2.0.0
+# lightgbm==4.1.0

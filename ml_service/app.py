@@ -1,3 +1,4 @@
+# app.py - Updated version
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
@@ -5,6 +6,14 @@ import numpy as np
 from datetime import datetime
 import joblib
 import os
+
+# Import DurationPredictor if available
+try:
+    from trainer import DurationPredictor
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+    print("⚠️ trainer.py not available - using heuristic only")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -63,7 +72,36 @@ class HeuristicModel:
             'modelVersion': self.version
         }
 
-model = HeuristicModel()
+# Initialize model - try to load trained ML model first
+model = None
+model_type = "heuristic"
+
+if ML_AVAILABLE:
+    try:
+        # Try to load trained model
+        model = DurationPredictor.load_model('models/duration_predictor.pkl')
+        model_type = "ml-trained"
+        print(f"✅ Loaded trained ML model: {model.version}")
+        
+        # Load metadata to show performance
+        try:
+            import json
+            with open('models/metadata.json', 'r') as f:
+                metadata = json.load(f)
+                print(f"📊 Model performance: MAE = {metadata['metrics']['mae']:.2f} min, R² = {metadata['metrics']['r2']:.3f}")
+        except:
+            print("📊 Model metadata not available")
+            
+    except FileNotFoundError:
+        print("⚠️  No trained model found, using heuristic")
+        model = HeuristicModel()
+    except Exception as e:
+        print(f"⚠️  Error loading ML model: {e}, using heuristic")
+        model = HeuristicModel()
+else:
+    model = HeuristicModel()
+
+print(f"📊 Active model: {model_type}")
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -79,11 +117,35 @@ def predict():
                     'error': f'Missing required field: {field}',
                     'predictedDuration': 20,
                     'confidence': 0.3,
-                    'modelVersion': model.version
+                    'modelVersion': model.version,
+                    'modelType': model_type
                 }), 400
         
+        # Prepare features based on model type
+        if model_type == "ml-trained":
+            # ML model requires more features
+            features = {
+                'department': data['department'],
+                'priority': data['priority'],
+                'appointmentType': data['appointmentType'],
+                'symptomCount': data.get('symptomCount', 1),
+                'timeOfDay': data.get('timeOfDay', 12),
+                'dayOfWeek': data.get('dayOfWeek', datetime.now().weekday())
+            }
+        else:
+            # Heuristic model
+            features = {
+                'department': data['department'],
+                'priority': data['priority'],
+                'appointmentType': data['appointmentType'],
+                'symptomCount': data.get('symptomCount', 1),
+                'timeOfDay': data.get('timeOfDay', 12)
+            }
+        
         # Make prediction
-        result = model.predict(data)
+        result = model.predict(features)
+        result['modelType'] = model_type  # Add model type to response
+        
         return jsonify(result)
         
     except Exception as e:
@@ -91,7 +153,8 @@ def predict():
             'error': str(e),
             'predictedDuration': 20,
             'confidence': 0.1,
-            'modelVersion': 'error-fallback'
+            'modelVersion': 'error-fallback',
+            'modelType': 'fallback'
         }), 500
 
 @app.route('/train', methods=['POST'])
@@ -110,16 +173,51 @@ def train():
         filename = f"data/training_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(filename, index=False)
         
+        # Check if we should trigger ML training
+        if len(data) >= 50 and ML_AVAILABLE:
+            # Suggest running trainer.py manually
+            return jsonify({
+                'message': f'Received {len(data)} training samples',
+                'savedTo': filename,
+                'trainingSuggestion': f'Run trainer.py to train new ML model (now has {len(data) + 81} total samples)',
+                'command': 'cd ml_service && python trainer.py',
+                'currentModelPerformance': 'MAE: 7.52 min, R²: 0.191'
+            })
+        
         # In future: Train actual model here
         # For now, just acknowledge receipt
         return jsonify({
             'message': f'Received {len(data)} training samples',
             'savedTo': filename,
-            'nextStep': 'Implement scikit-learn training in trainer.py'
+            'nextStep': f'Run trainer.py when you have at least 50 new samples (currently {len(data)})'
         })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/model-info', methods=['GET'])
+def model_info():
+    """Get information about current model"""
+    try:
+        import json
+        with open('models/metadata.json', 'r') as f:
+            metadata = json.load(f)
+            metrics = metadata['metrics']
+    except:
+        metrics = {'mae': 'unknown', 'r2': 'unknown'}
+    
+    return jsonify({
+        'modelType': model_type,
+        'modelVersion': model.version,
+        'requiresDayOfWeek': model_type == "ml-trained",
+        'performance': {
+            'mae': metrics.get('mae', 'unknown'),
+            'r2': metrics.get('r2', 'unknown')
+        },
+        'trainingSamples': 81 if model_type == "ml-trained" else 0,
+        'confidence': 0.65 if model_type == "heuristic" else "variable",
+        'suggestedRetraining': len(os.listdir('data')) > 0 if os.path.exists('data') else False
+    })
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -127,14 +225,19 @@ def health():
     return jsonify({
         'status': 'healthy',
         'model': model.version,
+        'modelType': model_type,
         'timestamp': datetime.now().isoformat()
     })
 
 if __name__ == '__main__':
-    print("🤖 ML Service starting...")
-    print("📊 Model: Heuristic v0.1")
+    print("="*60)
+    print("🤖 DKUT Medical Center - ML Service")
+    print("="*60)
+    print(f"📊 Model: {model_type} - {model.version}")
     print("🔌 Endpoints:")
-    print("   POST /predict    - Predict duration")
+    print("   POST /predict    - Predict consultation duration")
     print("   POST /train      - Receive training data")
+    print("   GET  /model-info - Get model information")
     print("   GET  /health     - Health check")
+    print("="*60)
     app.run(debug=True, port=5000, host='0.0.0.0')

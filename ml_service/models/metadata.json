@@ -1,0 +1,20 @@
+{
+  "trained_at": "2026-02-03T12:03:26.723200",
+  "samples": 81,
+  "train_samples": 64,
+  "test_samples": 17,
+  "metrics": {
+    "mae": 7.519697160682453,
+    "rmse": 9.768076852523672,
+    "r2": 0.1906835806621937,
+    "feature_importances": {
+      "department": 0.27804847991048653,
+      "priority": 0.15934029017506765,
+      "appointmentType": 0.11981810408545852,
+      "symptomCount": 0.08322463427355842,
+      "timeOfDay": 0.2228425399015186,
+      "dayOfWeek": 0.13672595165391035
+    }
+  },
+  "version": "v1.0-randomforest"
+}

@@ -372,4 +372,27 @@ export class InteractionController {
       res.json({ success: true, data: interactions });
     },
   );
+
+  static getActiveInteractions = asyncHandler(
+    async (req: Request, res: Response) => {
+      const { department, staffId } = req.query;
+      const where: any = {
+        checkoutTime: null,
+      };
+      if (department) {
+        where.department = department;
+      }
+      if (staffId) {
+        where.staffId = staffId;
+      }
+      const interactions = await prisma.interaction.findMany({
+        where,
+        include: {
+          patient: true,
+          appointment: true,
+        },
+      });
+      res.json(interactions);
+    },
+  );
 }

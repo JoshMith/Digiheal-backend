@@ -17,6 +17,7 @@ router.post('/:id/checkout', InteractionController.checkout);
 
 // Get interactions
 router.get('/queue', InteractionController.getQueue);
+router.get('/active', InteractionController.getActiveInteractions);
 router.get('/stats', InteractionController.getStats);
 router.get('/export', InteractionController.exportTrainingData);
 router.get('/patient/:patientId', InteractionController.getPatientInteractions);

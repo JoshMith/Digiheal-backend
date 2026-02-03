@@ -4,19 +4,26 @@ import { authenticate } from '../middleware/auth';
 
 const router: Router = Router();
 
-
-// Public routes
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
 router.get('/slots', AppointmentController.getAvailableSlots);
 router.post('/predict-duration', AppointmentController.predictAppointmentDuration);
 
-// Protected routes
+// ============================================
+// PROTECTED ROUTES (Authentication required)
+// Apply authenticate middleware to all routes below
+// ============================================
 router.use(authenticate);
 
+// Create appointment
 router.post('/', AppointmentController.createAppointment);
+
+router.get('/stats', AppointmentController.getAppointmentStats);
+router.get('/today/:department', AppointmentController.getTodayAppointments);
 router.get('/patient/:patientId', AppointmentController.getPatientAppointments);
 router.get('/staff/:staffId', AppointmentController.getStaffAppointments);
-router.get('/today/:department', AppointmentController.getTodayAppointments);
-router.get('/stats', AppointmentController.getAppointmentStats);
+// Dynamic ID route - MUST come AFTER specific routes
 router.get('/:id', AppointmentController.getAppointmentById);
 router.put('/:id', AppointmentController.updateAppointment);
 router.put('/:id/checkin', AppointmentController.checkInAppointment);

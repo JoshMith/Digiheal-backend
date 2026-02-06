@@ -135,12 +135,14 @@ export class InteractionController {
     res.json({ success: true, message: "Checkout complete" });
   });
 
-  // Get current queue - FIXED VERSION
+  // Get current queue
   static getQueue = asyncHandler(async (req: Request, res: Response) => {
     const queue = await prisma.interaction.findMany({
       where: {
-        checkoutTime: null, // Not checked out yet
-        checkInTime: { not: null } as any, // Type assertion to fix Prisma type issue
+        checkoutTime: null,
+        checkInTime: {
+          gt: new Date(0),
+        },
       },
       include: {
         patient: {

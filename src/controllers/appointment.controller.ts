@@ -251,6 +251,49 @@ static predictAppointmentDuration = asyncHandler(
     },
   );
 
+  // Get all appointments
+  static getAllAppointments = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const page = parseInt((req.query.page as string) || "1");
+      const limit = parseInt((req.query.limit as string) || "10");
+      const skip = (page - 1) * limit;
+      const status = req.query.status as string | undefined;
+
+      const where: any = {};
+      if (status) {
+        where.status = status;
+      }
+
+      const [appointments, total] = await Promise.all([
+        prisma.appointment.findMany({
+          where,
+          include: {
+            patient: {
+              select: {
+                firstName: true,
+                lastName: true,
+                studentId: true,
+                phone: true,
+              },
+            },
+          },
+        }),
+        prisma.appointment.count({ where }),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        data: appointments,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    },
+  );
+
   // Get appointments for a patient
   static getPatientAppointments = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {

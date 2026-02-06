@@ -23,6 +23,7 @@ router.get('/stats', AppointmentController.getAppointmentStats);
 router.get('/today/:department', AppointmentController.getTodayAppointments);
 router.get('/patient/:patientId', AppointmentController.getPatientAppointments);
 router.get('/staff/:staffId', AppointmentController.getStaffAppointments);
+router.get('/', AppointmentController.getAllAppointments);
 // Dynamic ID route - MUST come AFTER specific routes
 router.get('/:id', AppointmentController.getAppointmentById);
 router.put('/:id', AppointmentController.updateAppointment);

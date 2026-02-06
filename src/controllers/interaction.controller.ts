@@ -136,14 +136,27 @@ export class InteractionController {
   });
 
   // Get current queue
+
   static getQueue = asyncHandler(async (req: Request, res: Response) => {
-    const queue = await prisma.interaction.findMany({
-      where: {
-        checkoutTime: null,
-        checkInTime: {
-          gt: new Date(0),
-        },
+    const { department, staffId } = req.query; // ✅ Extract from query params
+
+    const where: any = {
+      checkoutTime: null,
+      checkInTime: {
+        gt: new Date(0), // Only interactions that have checked in
       },
+    };
+
+    if (department) {
+      where.department = department;
+    }
+
+    if (staffId) {
+      where.staffId = staffId;
+    }
+
+    const queue = await prisma.interaction.findMany({
+      where,
       include: {
         patient: {
           select: { firstName: true, lastName: true, studentId: true },

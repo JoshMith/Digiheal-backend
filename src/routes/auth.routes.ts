@@ -10,7 +10,8 @@ const router: Router = Router();
 router.post('/register/patient', registrationLimiter, authController.registerPatient);
 router.post('/register/staff', registrationLimiter, authController.registerStaff);
 router.post('/login', authLimiter, authController.login);
-router.get('/me', authenticate, authController.getProfile);
+
+router.get('/profile', authenticate, authController.getProfile);
 router.put('/profile', authenticate, authController.updateProfile);
 router.put('/change-password', authenticate, authController.changePassword);
 router.put('/users/:userId/role', authenticate, requireAdmin, authController.changeUserRole);

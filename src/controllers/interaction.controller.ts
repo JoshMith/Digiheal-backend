@@ -7,46 +7,80 @@ export class InteractionController {
   // Start new interaction (when patient checks in)
   static startInteraction = asyncHandler(
     async (req: Request, res: Response) => {
-      const { appointmentId } = req.body;
+      const {
+        appointmentId,
+        patientId,
+        staffId,
+        department,
+        priority,
+        appointmentType,
+        symptomCount,
+      } = req.body;
 
+      // Validate required fields
+      if (!appointmentId || !patientId || !department) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Missing required fields: appointmentId, patientId, department",
+        });
+      }
+
+      // Get appointment details
       const appointment = await prisma.appointment.findUnique({
         where: { id: appointmentId },
         include: { patient: true },
       });
 
       if (!appointment) {
-        return res
-          .status(404)
-          .json({ success: false, error: "Appointment not found" });
+        return res.status(404).json({
+          success: false,
+          error: "Appointment not found",
+        });
       }
 
       // Get ML prediction
       const predictedDuration = await predictDuration({
-        department: appointment.department,
-        priority: appointment.priority,
-        appointmentType: appointment.type,
-        symptomCount: 1, // Default - you might want to get this from somewhere
+        department: department || appointment.department,
+        priority: priority || appointment.priority,
+        appointmentType: appointmentType || appointment.type,
+        symptomCount: symptomCount || 1,
       });
 
       // Create interaction
       const interaction = await prisma.interaction.create({
         data: {
           appointmentId,
-          patientId: appointment.patientId,
-          staffId: req.user?.staffId || req.user?.userId || "system",
-          department: appointment.department,
-          priority: appointment.priority,
-          appointmentType: appointment.type,
-          symptomCount: 1, // Default symptom count
+          patientId: patientId || appointment.patientId,
+          staffId: staffId || req.user?.staffId || req.user?.userId || "system",
+          department: department || appointment.department,
+          priority: priority || appointment.priority,
+          appointmentType: appointmentType || appointment.type,
+          symptomCount: symptomCount || 1,
           checkInTime: new Date(),
           predictedDuration: predictedDuration.predictedDuration,
+        },
+        include: {
+          patient: {
+            select: {
+              firstName: true,
+              lastName: true,
+              studentId: true,
+            },
+          },
+          appointment: {
+            select: {
+              reason: true,
+              priority: true,
+            },
+          },
         },
       });
 
       res.status(201).json({
         success: true,
         data: interaction,
-        predictedDuration, // Return prediction info to client
+        predictedDuration,
       });
     },
   );

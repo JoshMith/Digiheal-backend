@@ -8,7 +8,7 @@ const router: Router = Router();
 router.use(authenticate);
 
 // Time tracking endpoints
-router.post('/start', InteractionController.startInteraction);
+router.post('/', InteractionController.startInteraction);
 router.post('/:id/vitals-start', InteractionController.startVitals);
 router.post('/:id/vitals-end', InteractionController.endVitals);
 router.post('/:id/consultation-start', InteractionController.startConsultation);

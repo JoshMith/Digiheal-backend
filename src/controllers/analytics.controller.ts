@@ -5,120 +5,125 @@ import { checkHealth, getModelInfo } from "../services/ml.service";
 
 export class AnalyticsController {
   static getDashboard = asyncHandler(async (req: Request, res: Response) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    const [
-      totalPatientsToday,
-      avgWaitTime,
-      avgInteractionTime,
-      totalAppointments,
-      noShowCount,
-      completedAppointments,
-    ] = await Promise.all([
-      // Total patients today
-      prisma.interaction.count({
-        where: {
-          checkInTime: { gte: today },
-        },
-      }),
-
-      // Average wait time (check-in to consultation start)
-      prisma.interaction.aggregate({
-        where: {
-          vitalsDuration: { not: null },
-        },
-        _avg: {
-          vitalsDuration: true,
-        },
-      }),
-
-      // Average interaction time
-      prisma.interaction.aggregate({
-        where: {
-          interactionDuration: { not: null },
-        },
-        _avg: {
-          interactionDuration: true,
-        },
-      }),
-
-      // Total appointments today
-      prisma.appointment.count({
-        where: {
-          appointmentDate: today,
-        },
-      }),
-
-      // No-shows
-      prisma.appointment.count({
-        where: {
-          appointmentDate: today,
-          status: "NO_SHOW",
-        },
-      }),
-
-      // Completed appointments today
-      prisma.appointment.count({
-        where: {
-          appointmentDate: today,
-          status: "COMPLETED",
-        },
-      }),
-    ]);
-
-    // Get ML service health and model info
-    const mlHealth = await checkHealth();
-    const modelInfo = await getModelInfo();
-
-    // Calculate ML accuracy (simulated)
-    const interactionsWithPredictions = await prisma.interaction.findMany({
+  const [
+    totalPatientsToday,
+    totalPatients,          // ✅ Total patients ever (for context)
+    avgWaitTime,
+    avgInteractionTime,
+    totalAppointments,
+    noShowCount,
+    completedAppointments,  // ✅ Now at correct index 6
+  ] = await Promise.all([
+    // Total patients TODAY
+    prisma.interaction.count({
       where: {
-        predictedDuration: { not: null },
-        totalDuration: { not: null },
+        checkInTime: { gte: today },
       },
-      select: {
-        predictedDuration: true,
-        totalDuration: true,
-      },
-    });
+    }),
 
-    let mlAccuracy = 0;
-    if (interactionsWithPredictions.length > 0) {
-      const accuratePredictions = interactionsWithPredictions.filter(
-        (interaction) => {
-          const diff = Math.abs(
-            (interaction.totalDuration || 0) -
-              (interaction.predictedDuration || 0),
-          );
-          return diff <= 10; // Consider prediction accurate if within 10 minutes
-        },
-      ).length;
-      mlAccuracy =
-        (accuratePredictions / interactionsWithPredictions.length) * 100;
-    }
+    // Total patients EVER (all time)
+    prisma.patient.count(),
 
-    res.json({
-      success: true,
-      data: {
-        totalPatientsToday,
-        avgWaitTime: avgWaitTime._avg.vitalsDuration || 0,
-        avgInteractionTime: avgInteractionTime._avg.interactionDuration || 0,
-        totalAppointments,
-        completedAppointments,
-        noShowCount,
-        noShowRate:
-          totalAppointments > 0 ? (noShowCount / totalAppointments) * 100 : 0,
-        completionRate:
-          totalAppointments > 0
-            ? (completedAppointments / totalAppointments) * 100
-            : 0,
-        mlServiceStatus: mlHealth?.status || "unavailable",
-        mlModelType: modelInfo?.modelType || "unknown",
-        mlAccuracy: Math.round(mlAccuracy * 100) / 100,
+    // Average wait time (check-in to consultation start)
+    prisma.interaction.aggregate({
+      where: {
+        vitalsDuration: { not: null },
       },
-    });
+      _avg: {
+        vitalsDuration: true,
+      },
+    }),
+
+    // Average interaction time
+    prisma.interaction.aggregate({
+      where: {
+        interactionDuration: { not: null },
+      },
+      _avg: {
+        interactionDuration: true,
+      },
+    }),
+
+    // Total appointments today
+    prisma.appointment.count({
+      where: {
+        appointmentDate: today,
+      },
+    }),
+
+    // No-shows today
+    prisma.appointment.count({
+      where: {
+        appointmentDate: today,
+        status: "NO_SHOW",
+      },
+    }),
+
+    // Completed appointments today
+    prisma.appointment.count({
+      where: {
+        appointmentDate: today,
+        status: "COMPLETED",
+      },
+    }),
+  ]);
+
+  // Get ML service health and model info
+  const mlHealth = await checkHealth();
+  const modelInfo = await getModelInfo();
+
+  // Calculate ML accuracy
+  const interactionsWithPredictions = await prisma.interaction.findMany({
+    where: {
+      predictedDuration: { not: null },
+      totalDuration: { not: null },
+    },
+    select: {
+      predictedDuration: true,
+      totalDuration: true,
+    },
   });
+
+  let mlAccuracy = 0;
+  if (interactionsWithPredictions.length > 0) {
+    const accuratePredictions = interactionsWithPredictions.filter(
+      (interaction) => {
+        const diff = Math.abs(
+          (interaction.totalDuration || 0) -
+            (interaction.predictedDuration || 0),
+        );
+        return diff <= 10; // Consider prediction accurate if within 10 minutes
+      },
+    ).length;
+    mlAccuracy =
+      (accuratePredictions / interactionsWithPredictions.length) * 100;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      totalPatientsToday,
+      totalPatients,        // ✅ Include total patients count
+      avgWaitTime: avgWaitTime._avg.vitalsDuration || 0,
+      avgInteractionTime: avgInteractionTime._avg.interactionDuration || 0,
+      totalAppointments,
+      completedAppointments,
+      noShowCount,
+      noShowRate:
+        totalAppointments > 0 ? (noShowCount / totalAppointments) * 100 : 0,
+      completionRate:
+        totalAppointments > 0
+          ? (completedAppointments / totalAppointments) * 100
+          : 0,
+      mlServiceStatus: mlHealth?.status || "unavailable",
+      mlModelType: modelInfo?.modelType || "unknown",
+      mlAccuracy: Math.round(mlAccuracy * 100) / 100,
+    },
+  });
+});
 
   static getPatientFlow = asyncHandler(async (req: Request, res: Response) => {
     const granularity = (req.query.granularity as string) || "daily";
